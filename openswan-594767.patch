@@ -1,0 +1,27 @@
+diff -urNp openswan-2.6.24-cvs-patched/programs/_realsetup/_realsetup.in openswan-2.6.24/programs/_realsetup/_realsetup.in
+--- openswan-2.6.24-cvs-patched/programs/_realsetup/_realsetup.in	2010-06-04 17:48:03.800389883 -0400
++++ openswan-2.6.24/programs/_realsetup/_realsetup.in	2010-06-08 12:38:37.400152112 -0400
+@@ -471,6 +471,12 @@ case "$1" in
+ 			exit 3
+ 		fi
+ 		echo "but..."
++		if test "$plutokind" != "no"
++		then
++			echo "An ${plutokind} Pluto is active?"
++			exit 1
++		fi
++
+ 		if test "$hassublock"
+ 		then
+ 			echo "has subsystem lock ($subsyslock)!"
+@@ -480,10 +486,6 @@ case "$1" in
+ 		then
+ 			echo "has $info file!"
+ 		fi
+-		if test "$plutokind" != "no"
+-		then
+-			echo "An ${plutokind} Pluto is active?"
+-		fi
+ 		if test "$eroutes" -gt 0
+ 		then
+ 			echo "some (${eroutes}) eroutes exist!"

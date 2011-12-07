@@ -1,0 +1,312 @@
+diff -urNp openswan-2.6.24-cvs-patched/programs/auto/auto.in openswan-2.6.24/programs/auto/auto.in
+--- openswan-2.6.24-cvs-patched/programs/auto/auto.in	2010-06-04 17:48:04.265391210 -0400
++++ openswan-2.6.24/programs/auto/auto.in	2010-06-30 00:47:43.095149706 -0400
+@@ -40,6 +40,111 @@ op=
+ argc=
+ utc=
+ 
++defaultinterface() {
++	local getphysdev getifaddr addr phys next multiaddr multidefault
++	addr=
++	phys=
++	next=
++	multiaddr=
++	multidefault=
++
++	getphysdev() {
++	    local phys next addr
++	    phys=
++	    next=
++	    addr=
++	    while test $# -gt 0
++	      do
++	      case $1 in
++		  dev)
++		      phys=$2
++		      shift; shift;
++		      ;;
++		  via)
++		      next=$2
++		      shift; shift;
++		      ;;
++		  src)
++		      addr=$2
++		      shift; shift
++		      ;;
++		  *)
++		      shift
++		      ;;
++	      esac
++	    done
++	    echo "phys=$phys"
++	    echo "next=$next"
++	    echo "addr=$addr"
++	}
++
++	getifaddr() {
++	    local addr peer
++	    addr=
++	    peer=
++	    while test $# -gt 0
++	      do
++	      case $1 in
++		  inet)
++		      addr=$2
++		      shift; shift
++		      ;;
++		  peer)
++		      peer=$2
++		      shift; shift
++		      ;;
++		  *)
++		      shift
++		      ;;
++	      esac
++	    done
++	    if test -n "$peer"
++	    then
++		echo "next=${peer%/*}"
++	    fi
++	    echo "addr=${addr%/*}"
++	}
++
++	iproutedefault=`ip route list 0.0.0.0/0`
++	if test -n "$iproutedefault"
++	then
++	  if test `echo "$iproutedefault" | wc -l` -gt 1
++	  then
++	    multidefault=1
++	    iproutedefault=`echo $iproutedefault | head -1`
++	  fi
++	  eval `getphysdev $iproutedefault`
++	  if test -z "$next" -o -z "$addr" -a -n "$phys"
++	  then
++	    ipaddrlist=`ip -o -f inet addr list dev $phys` 
++	    if test `echo "$ipaddrlist" | wc -l` -gt 1
++	    then
++	      multiaddr=1
++	      ipaddrlist=`echo "$ipaddrlist" | head -1`
++	    fi
++	    eval `getifaddr $ipaddrlist`
++	  fi
++	  if test -n "$multidefault"
++	  then
++	    echo "multiple default routes, using $next on $phys"
++	  fi
++	  if test -n "$multiaddr"
++	  then
++	    echo "multiple ip addresses, using  $addr on $phys"
++	  fi
++	else
++	  echo "no default routes detected"
++	fi
++	# simulate old silly output
++	echo "defaultroutephys=$phys" > $info
++	echo "defaultroutevirt=none" >> $info
++	echo "defaultrouteaddr=$addr" >> $info
++	echo  "defaultroutenexthop=$next" >> $info
++}
++
++# calling this routine here again to update default network information in /var/run/pluto/ipsec.info
++defaultinterface
++
+ for dummy
+ do
+ 	case "$1" in
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/connections.c openswan-2.6.24/programs/pluto/connections.c
+--- openswan-2.6.24-cvs-patched/programs/pluto/connections.c	2010-06-18 15:37:42.552140690 -0400
++++ openswan-2.6.24/programs/pluto/connections.c	2010-06-30 00:49:41.082169986 -0400
+@@ -456,7 +456,8 @@ check_orientations(void)
+     }
+ }
+ 
+-static err_t
++
++err_t
+ default_end(struct end *e, ip_address *dflt_nexthop)
+ {
+     err_t ugh = NULL;
+@@ -1051,7 +1052,8 @@ check_connection_end(const struct whack_
+     }
+ 
+     /* MAKE this more sane in the face of unresolved IP addresses */
+-    if (that->host_type != KH_IPHOSTNAME && isanyaddr(&that->host_addr))
++    /* that->host_type != KH_DEFAULTROUTE for cases when network is not up at the boot time*/
++    if (that->host_type != KH_IPHOSTNAME && that->host_type != KH_DEFAULTROUTE && isanyaddr(&that->host_addr))
+     {
+ 	/* other side is wildcard: we must check if other conditions met */
+ 	if (that->host_type != KH_IPHOSTNAME && isanyaddr(&this->host_addr))
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/connections.h openswan-2.6.24/programs/pluto/connections.h
+--- openswan-2.6.24-cvs-patched/programs/pluto/connections.h	2010-06-18 15:37:42.554140323 -0400
++++ openswan-2.6.24/programs/pluto/connections.h	2010-06-30 00:50:02.228165816 -0400
+@@ -287,6 +287,8 @@ extern size_t format_end(char *buf, size
+     , const struct end *this, const struct end *that
+     , bool is_left, lset_t policy);
+ 
++extern err_t default_end(struct end *e, ip_address *dflt_nexthop);
++
+ struct whack_message;	/* forward declaration of tag whack_msg */
+ extern void add_connection(const struct whack_message *wm);
+ extern void initiate_connection(const char *name
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/initiate.c openswan-2.6.24/programs/pluto/initiate.c
+--- openswan-2.6.24-cvs-patched/programs/pluto/initiate.c	2010-06-14 11:43:59.842116317 -0400
++++ openswan-2.6.24/programs/pluto/initiate.c	2010-06-30 00:59:14.608151547 -0400
+@@ -148,6 +148,119 @@ struct initiate_stuff {
+     enum crypto_importance importance;
+ };
+ 
++
++static int 
++resolve_and_reorient(struct connection *c) {
++
++    /* Connection is not oriented, and this may be because the connection was loaded when network was not up due to unresolved ip (atleast this or that) addresses */
++    /* Now connection is being initiated, and assuming network is up, we are trying once more to resolve ip addresses, */
++    /* and to add new network interfaces, and to orient the connections. */
++
++    if (!oriented(*c) && &c->spd != NULL && ( isanyaddr(&c->spd.this.host_addr) || isanyaddr(&c->spd.that.host_addr) ) ) {
++		char filedata[200]; /*size is set randonly*/
++		FILE *fp;
++		size_t bytes;
++		char value[20]; /*size is set randomly*/
++		char *tmp;
++
++		/* Reading the file /var/run/pluto/ipsec.info to obtain default route address ("defaultrouteaddr") after network is up*/
++		fp=fopen("/var/run/pluto/ipsec.info","r");
++
++		if(fp == NULL) {
++		DBG(DBG_CONTROLMORE, DBG_log("Error in opening /var/run/pluto/ipsec.info"));
++		return 0;
++		}
++
++		bytes=fread(filedata, 1, sizeof(filedata)-1, fp);
++		filedata[bytes]='\0';
++                value[0]='\0';
++		fclose(fp);
++
++		if(bytes==0){
++		DBG(DBG_CONTROLMORE, DBG_log("Error reading /var/run/pluto/ipsec.info or file empty"));
++		return 0;
++		}
++
++		unsigned int i = 0;
++		do
++		{
++		int start = i;
++		unsigned int slen;
++
++		while (filedata[i] != '\r' && filedata[i] != '\n' && i < bytes) i++;
++		filedata[i++] = '\0';
++
++		while ( (i<bytes) && (filedata[i] == '\r' || filedata[i] == '\n')) {
++		filedata[i++] = '\0';
++		}
++
++		tmp = &filedata[start];
++
++		if (strncmp(tmp, "defaultrouteaddr", strlen("defaultrouteaddr"))) continue;
++		slen = strlen(tmp);
++
++		if (slen < strlen("defaultrouteaddr")+1) continue;
++		if (tmp[strlen("defaultrouteaddr")] != '=') continue;
++		strcpy(value, &tmp[strlen("defaultrouteaddr")+1]);
++		break;
++
++		} while (i<bytes);
++
++	/*Trying to resolve "this" end*/
++	if(c->spd.this.host_type == KH_DEFAULTROUTE && isanyaddr(&c->spd.this.host_addr)) {
++	err_t e;
++        e = ttoaddr(value, 0, 0, &c->spd.this.host_addr);
++        	if(e) {
++            	DBG(DBG_CONTROLMORE, DBG_log("we can not yet resolve this defaultrouteaddr"));
++		return 0;
++        	}		
++	} 
++	else if (c->spd.this.host_type == KH_IPHOSTNAME && isanyaddr(&c->spd.this.host_addr)) {
++        err_t e;
++        e = ttoaddr(c->spd.this.host_addr_name, 0, 0, &c->spd.this.host_addr);
++                if(e) {
++                DBG(DBG_CONTROLMORE, DBG_log("we can not yet resolve this ip address string"));
++                return 0;
++                }
++	}
++
++	/*Trying to resolve "that", and also another reason for doing this is that as the connection is not yet oriented, so it is not known which end is which*/
++        if(c->spd.that.host_type == KH_DEFAULTROUTE &&  isanyaddr(&c->spd.that.host_addr) ) {
++        err_t e;
++        e = ttoaddr(value, 0, 0, &c->spd.that.host_addr);
++                if(e) {
++                DBG(DBG_CONTROLMORE, DBG_log("we can not yet resolve that defaultrouteaddr"));
++                return 0;
++                }
++        } 
++        else if (c->spd.that.host_type == KH_IPHOSTNAME && isanyaddr(&c->spd.that.host_addr)) {
++        err_t e;
++        e = ttoaddr(c->spd.that.host_addr_name, 0, 0, &c->spd.that.host_addr);
++                if(e) {
++                DBG(DBG_CONTROLMORE, DBG_log("we can not yet resolve that ip address string"));
++                return 0;
++                }
++        }
++
++	/* If both this and that are resolved, only then proceed*/
++	if ( !isanyaddr(&c->spd.this.host_addr) && !isanyaddr(&c->spd.that.host_addr)) { 
++
++	/*Once ip addresses are resolved, setting boths end again*/
++	default_end(&c->spd.this, &c->spd.that.host_addr);
++    default_end(&c->spd.that, &c->spd.this.host_addr);
++
++	/*Now when ip addresses are resolved, adding new network interfaces after network is up*/
++	find_ifaces();
++
++	/*Due to the unresolved ip addresses this connection may have been set to CK_TEMPLATE, setting it to CK_PERMANENT as ip addresses are resolved now.*/
++	c->kind = CK_PERMANENT;
++	}
++    }
++
++return 1;
++
++}
++
+ static int
+ initiate_a_connection(struct connection *c
+ 		      , void *arg)
+@@ -162,9 +275,14 @@ initiate_a_connection(struct connection 
+ 
+     /* turn on any extra debugging asked for */
+     c->extra_debugging |= moredebug;
+-    
+-    if (!oriented(*c))
+-    {
++
++    if (!oriented(*c)) {
++	/*Lets try to resolve and reorient the connection once more, assuming network connection is up now*/
++	resolve_and_reorient(c);
++    }
++
++    if (!oriented(*c)) {
++
+ 	loglog(RC_ORIENT, "We cannot identify ourselves with either end of this connection.");
+     }
+     else if (NEVER_NEGOTIATE(c->policy))
+diff -urNp openswan-2.6.24-cvs-patched/programs/_updown.netkey/_updown.ip2.in openswan-2.6.24/programs/_updown.netkey/_updown.ip2.in
+--- openswan-2.6.24-cvs-patched/programs/_updown.netkey/_updown.ip2.in	2010-06-18 15:37:42.560143764 -0400
++++ openswan-2.6.24/programs/_updown.netkey/_updown.ip2.in	2010-06-30 01:04:16.926154021 -0400
+@@ -259,8 +259,15 @@ fi
+ addsource() {
+     st=0
+     # check if given sourceip is local and add as alias if not
+-    if ! ip -o route get ${PLUTO_MY_SOURCEIP%/*} | grep -q ^local; then
+-	it="ip addr add ${PLUTO_MY_SOURCEIP%/*}/32 dev ${PLUTO_INTERFACE%:*}"
++    saddr=${PLUTO_MY_SOURCEIP%/*}/32
++    if test "${PLUTO_PEER_CLIENT##*/}" != 32
++    then
++	snet=${PLUTO_MY_SOURCEIP%/*}/"${PLUTO_PEER_CLIENT##*/}"
++    fi
++
++    if ! ip addr show dev ${PLUTO_INTERFACE%:*} | grep -qs "inet ${snet}"
++    then
++	it="ip addr add ${snet} dev ${PLUTO_INTERFACE%:*}"
+ 	oops="`eval $it 2>&1`"
+ 	st=$?
+ 	if [ " $oops" = " " -a " $st" != " 0" ]; then

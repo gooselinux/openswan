@@ -1,0 +1,116 @@
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/spdb_struct.c openswan-2.6.24/programs/pluto/spdb_struct.c
+--- openswan-2.6.24-cvs-patched/programs/pluto/spdb_struct.c	2010-06-04 17:48:03.209403711 -0400
++++ openswan-2.6.24/programs/pluto/spdb_struct.c	2010-07-21 15:02:10.710106772 -0400
+@@ -85,6 +85,14 @@ struct db_sa oakley_empty = { AD_SAp(oak
+ 
+ /*
+  * 	Create an OAKLEY proposal based on alg_info and policy
++ *
++ * Note: maxtrans is an enum, not a count
++ * 	Should probably be declared an enum at some point.
++ * 	-1 - ???
++ * 	 0 - No limit
++ * 	 1 - One proposal - period
++ * 	 2 - One DH group, take first DH group and ignore any that don't match
++ *
+  */
+ struct db_sa *
+ oakley_alg_makedb(struct alg_info_ike *ai
+@@ -96,6 +104,8 @@ oakley_alg_makedb(struct alg_info_ike *a
+     struct db_sa *emp_sp = NULL;
+     struct ike_info *ike_info;
+     unsigned ealg, halg, modp, eklen=0;
++    /* Next two are for multiple proposals in agressive mode... */
++    unsigned last_modp=0, wrong_modp=0;
+     struct encrypt_desc *enc_desc;
+     int transcnt = 0;
+     int i;
+@@ -229,6 +239,11 @@ oakley_alg_makedb(struct alg_info_ike *a
+ 	}
+ 
+ 	if(maxtrans == 1) {
++            /*
++             *  We're going to leave maxtrans == 1 alone in case there
++             * really really is a case where we only want 1.
++             */
++
+ 	    if(transcnt == 0) {
+ 		DBG(DBG_CONTROL, DBG_log("using transform (%d,%d,%d,%ld)"
+ 					 , ike_info->ike_ealg
+@@ -259,10 +274,33 @@ oakley_alg_makedb(struct alg_info_ike *a
+ 	    } 
+ 
+ 	} else {
++            /*
++             * Now...  We're allowing multiple proposals...  Are we allowing
++             * multiple DH groups?
++             */
++
+ 	    struct db_sa *new;
+ 
++            if(maxtrans == 2 && transcnt > 0 && ike_info->ike_modp != last_modp ) {
++                /* Not good.
++                 * Already got a DH group and this one doesn't match */
++		if(wrong_modp == 0) {
++		    loglog(RC_LOG_SERIOUS
++			   , "multiple DH groups were set in aggressive mode. Only first one used.");
++		}
++
++		loglog(RC_LOG_SERIOUS
++		           , "transform (%d,%d,%d,%ld) ignored."
++		           , ike_info->ike_ealg
++		           , ike_info->ike_halg
++		           , ike_info->ike_modp
++		           , (long)ike_info->ike_eklen);
++
++                wrong_modp++;
++
++		free_sa(emp_sp);
++	    } else if(gsp) {
+ 	    /* now merge emp_sa and gsp */
+-	    if(gsp) {
+ 		new = sa_merge_proposals(gsp, emp_sp);
+ 		free_sa(gsp);
+ 		free_sa(emp_sp);
+@@ -271,6 +309,7 @@ oakley_alg_makedb(struct alg_info_ike *a
+ 	    } else {
+ 		gsp = emp_sp;
+ 	    }
++            last_modp = ike_info->ike_modp;
+ 	}
+ 	transcnt++;
+     }
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/spdb_v1_struct.c openswan-2.6.24/programs/pluto/spdb_v1_struct.c
+--- openswan-2.6.24-cvs-patched/programs/pluto/spdb_v1_struct.c	2010-06-04 17:48:03.415388137 -0400
++++ openswan-2.6.24/programs/pluto/spdb_v1_struct.c	2010-07-21 15:04:42.881105451 -0400
+@@ -130,9 +130,10 @@ out_sa(pb_stream *outs
+ 
+ 
+     if(oakley_mode) {
++        /* Aggr-Mode - Max transforms == 2 - Multiple transforms, 1 DH group */
+ 	revised_sadb=oakley_alg_makedb(st->st_connection->alg_info_ike
+ 				       , sadb
+-				       , aggressive_mode ? 1 : -1);
++				       , aggressive_mode ? 2 : -1);
+     } else {
+ 	revised_sadb=kernel_alg_makedb(st->st_connection->policy
+ 				       , st->st_connection->alg_info_esp
+@@ -1327,8 +1328,9 @@ init_am_st_oakley(struct state *st, lset
+     passert(policy_index < elemsof(oakley_am_sadb));
+     sa = &oakley_am_sadb[policy_index];
+     
++    /* Max transforms == 2 - Multiple transforms, 1 DH group */
+     revised_sadb=oakley_alg_makedb(st->st_connection->alg_info_ike
+-				   , sa, 1);
++				   , sa, 2);
+ 
+     
+     if(revised_sadb == NULL) {
+@@ -1340,7 +1342,6 @@ init_am_st_oakley(struct state *st, lset
+     passert(cprop->prop_cnt == 1);
+     prop = &cprop->props[0];
+ 
+-    passert(prop->trans_cnt == 1);
+     trans = &prop->trans[0];
+ 
+     passert(trans->attr_cnt == 4 || trans->attr_cnt == 5); 

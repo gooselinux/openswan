@@ -1,0 +1,333 @@
+diff -urNp openswan-2.6.24-cvs-patched/include/ietf_constants.h openswan-2.6.24-cvs-patched-modified/include/ietf_constants.h
+--- openswan-2.6.24-cvs-patched/include/ietf_constants.h	2010-03-03 14:46:07.000000000 -0500
++++ openswan-2.6.24-cvs-patched-modified/include/ietf_constants.h	2010-03-18 13:25:51.000000000 -0400
+@@ -21,6 +21,45 @@
+ 
+ #define MODP_GENERATOR "2"
+ 
++#ifdef USE_MODP_RFC5114
++/* Diffie-Hellman group 22 generator (RFC 5114) */
++#define MODP_GENERATOR_DH22 \
++	"A4D1CBD5 C3FD3412 6765A442 EFB99905 F8104DD2 58AC507F " \
++	"D6406CFF 14266D31 266FEA1E 5C41564B 777E690F 5504F213 " \
++	"160217B4 B01B886A 5E91547F 9E2749F4 D7FBD7D3 B9A92EE1 " \
++	"909D0D22 63F80A76 A6A24C08 7A091F53 1DBF0A01 69B6A28A " \
++	"D662A4D1 8E73AFA3 2D779D59 18D08BC8 858F4DCE F97C2A24 " \
++	"855E6EEB 22B3B2E5"
++
++/* Diffie-Hellman group 23 generator (RFC 5114) */
++#define MODP_GENERATOR_DH23 \
++	"AC4032EF 4F2D9AE3 9DF30B5C 8FFDAC50 6CDEBE7B 89998CAF " \
++	"74866A08 CFE4FFE3 A6824A4E 10B9A6F0 DD921F01 A70C4AFA " \
++	"AB739D77 00C29F52 C57DB17C 620A8652 BE5E9001 A8D66AD7 " \
++	"C1766910 1999024A F4D02727 5AC1348B B8A762D0 521BC98A " \
++	"E2471504 22EA1ED4 09939D54 DA7460CD B5F6C6B2 50717CBE " \
++	"F180EB34 118E98D1 19529A45 D6F83456 6E3025E3 16A330EF " \
++	"BB77A86F 0C1AB15B 051AE3D4 28C8F8AC B70A8137 150B8EEB " \
++	"10E183ED D19963DD D9E263E4 770589EF 6AA21E7F 5F2FF381 " \
++	"B539CCE3 409D13CD 566AFBB4 8D6C0191 81E1BCFE 94B30269 " \
++	"EDFE72FE 9B6AA4BD 7B5A0F1C 71CFFF4C 19C418E1 F6EC0179 " \
++	"81BC087F 2A7065B3 84B890D3 191F2BFA"
++
++/* Diffie-Hellman group 24 generator (RFC 5114) */
++#define MODP_GENERATOR_DH24 \
++	"3FB32C9B 73134D0B 2E775066 60EDBD48 4CA7B18F 21EF2054 " \
++	"07F4793A 1A0BA125 10DBC150 77BE463F FF4FED4A AC0BB555 " \
++	"BE3A6C1B 0C6B47B1 BC3773BF 7E8C6F62 901228F8 C28CBB18 " \
++	"A55AE313 41000A65 0196F931 C77A57F2 DDF463E5 E9EC144B " \
++	"777DE62A AAB8A862 8AC376D2 82D6ED38 64E67982 428EBC83 " \
++	"1D14348F 6F2F9193 B5045AF2 767164E1 DFC967C1 FB3F2E55 " \
++	"A4BD1BFF E83B9C80 D052B985 D182EA0A DB2A3B73 13D3FE14 " \
++	"C8484B1E 052588B9 B7D2BBD2 DF016199 ECD06E15 57CD0915 " \
++	"B3353BBB 64E0EC37 7FD02837 0DF92B52 C7891428 CDC67EB6 " \
++	"184B523D 1DB246C3 2F630784 90F00EF8 D647D148 D4795451 " \
++	"5E2327CF EF98C582 664B4C0F 6CC41659"
++#endif
++
+ #define MODP768_MODULUS \
+     "FFFFFFFF FFFFFFFF C90FDAA2 2168C234 C4C6628B 80DC1CD1 " \
+     "29024E08 8A67CC74 020BBEA6 3B139B22 514A0879 8E3404DD " \
+@@ -178,6 +217,46 @@
+ 	"9558E447 5677E9AA 9E3050E2 765694DF C81F56E8 80B96E71" \
+ 	"60C980DD 98EDD3DF FFFFFFFF FFFFFFFF"
+ 
++#ifdef USE_MODP_RFC5114
++/* Diffie-Hellman group 22 prime (RFC 5114) */
++#define MODP1024_MODULUS_DH22 \
++	"B10B8F96 A080E01D DE92DE5E AE5D54EC 52C99FBC FB06A3C6 " \
++	"9A6A9DCA 52D23B61 6073E286 75A23D18 9838EF1E 2EE652C0 " \
++	"13ECB4AE A9061123 24975C3C D49B83BF ACCBDD7D 90C4BD70 " \
++	"98488E9C 219A7372 4EFFD6FA E5644738 FAA31A4F F55BCCC0 " \
++	"A151AF5F 0DC8B4BD 45BF37DF 365C1A65 E68CFDA7 6D4DA708 " \
++	"DF1FB2BC 2E4A4371"
++
++/* Diffie-Hellman group 23 prime (RFC 5114) */
++#define MODP2048_MODULUS_DH23 \
++	"AD107E1E 9123A9D0 D660FAA7 9559C51F A20D64E5 683B9FD1 " \
++	"B54B1597 B61D0A75 E6FA141D F95A56DB AF9A3C40 7BA1DF15 " \
++	"EB3D688A 309C180E 1DE6B85A 1274A0A6 6D3F8152 AD6AC212 " \
++	"9037C9ED EFDA4DF8 D91E8FEF 55B7394B 7AD5B7D0 B6C12207 " \
++	"C9F98D11 ED34DBF6 C6BA0B2C 8BBC27BE 6A00E0A0 B9C49708 " \
++	"B3BF8A31 70918836 81286130 BC8985DB 1602E714 415D9330 " \
++	"278273C7 DE31EFDC 7310F712 1FD5A074 15987D9A DC0A486D " \
++	"CDF93ACC 44328387 315D75E1 98C641A4 80CD86A1 B9E587E8 " \
++	"BE60E69C C928B2B9 C52172E4 13042E9B 23F10B0E 16E79763 " \
++	"C9B53DCF 4BA80A29 E3FB73C1 6B8E75B9 7EF363E2 FFA31F71 " \
++	"CF9DE538 4E71B81C 0AC4DFFE 0C10E64F"
++
++/* Diffie-Hellman group 24 prime (RFC 5114) */
++#define MODP2048_MODULUS_DH24 \
++	"87A8E61D B4B6663C FFBBD19C 65195999 8CEEF608 660DD0F2 " \
++	"5D2CEED4 435E3B00 E00DF8F1 D61957D4 FAF7DF45 61B2AA30 " \
++	"16C3D911 34096FAA 3BF4296D 830E9A7C 209E0C64 97517ABD " \
++	"5A8A9D30 6BCF67ED 91F9E672 5B4758C0 22E0B1EF 4275BF7B " \
++	"6C5BFC11 D45F9088 B941F54E B1E59BB8 BC39A0BF 12307F5C " \
++	"4FDB70C5 81B23F76 B63ACAE1 CAA6B790 2D525267 35488A0E " \
++	"F13C6D9A 51BFA4AB 3AD83477 96524D8E F6A167B5 A41825D9 " \
++	"67E144E5 14056425 1CCACB83 E6B486F6 B3CA3F79 71506026 " \
++	"C0B857F6 89962856 DED4010A BD0BE621 C3A3960A 54E710C3 " \
++	"75F26375 D7014103 A4B54330 C198AF12 6116D227 6E11715F " \
++	"693877FA D7EF09CA DB094AE9 1E1A1597"
++
++#endif
++
+ #define LOCALSECRETSIZE		BYTES_FOR_BITS(256)
+ 
+ /* limits on nonce sizes.  See RFC2409 "The internet key exchange (IKE)" 5 */
+@@ -833,6 +912,11 @@ enum ike_trans_type_dh {
+ 	OAKLEY_GROUP_MODP4096     = 16,
+ 	OAKLEY_GROUP_MODP6144     = 17,
+ 	OAKLEY_GROUP_MODP8192     = 18,
++#ifdef USE_MODP_RFC5114
++	OAKLEY_GROUP_DH22         = 22,
++	OAKLEY_GROUP_DH23         = 23,
++	OAKLEY_GROUP_DH24         = 24,
++#endif
+ };
+ 
+ /* Oakley Group Type attribute
+diff -urNp openswan-2.6.24-cvs-patched/lib/libopenswan/constants.c openswan-2.6.24-cvs-patched-modified/lib/libopenswan/constants.c
+--- openswan-2.6.24-cvs-patched/lib/libopenswan/constants.c	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24-cvs-patched-modified/lib/libopenswan/constants.c	2010-03-18 13:28:02.000000000 -0400
+@@ -793,9 +793,29 @@ static const char *const oakley_group_na
+ 	"OAKLEY_GROUP_MODP6144",
+ 	"OAKLEY_GROUP_MODP8192"
+ };
++
++#ifdef USE_MODP_RFC5114
++static const char *const oakley_group_name_rfc5114[] = {
++        "OAKLEY_GROUP_DH22",
++        "OAKLEY_GROUP_DH23",
++        "OAKLEY_GROUP_DH24"
++};
++#endif
++
++#ifdef USE_MODP_RFC5114
++enum_names oakley_group_names_rfc5114 =
++    { OAKLEY_GROUP_DH22, OAKLEY_GROUP_DH24,
++            oakley_group_name_rfc5114, NULL };
++#endif
++
+ enum_names oakley_group_names_rfc3526 =
+     { OAKLEY_GROUP_MODP2048, OAKLEY_GROUP_MODP8192,
+-	    oakley_group_name_rfc3526, NULL };
++	    oakley_group_name_rfc3526,
++#ifdef USE_MODP_RFC5114
++	    &oakley_group_names_rfc5114 };
++#else
++	    NULL };
++#endif
+ 
+ enum_names oakley_group_names =
+     { OAKLEY_GROUP_MODP768, OAKLEY_GROUP_MODP1536, 
+diff -urNp openswan-2.6.24-cvs-patched/lib/libopenswan/Makefile openswan-2.6.24-cvs-patched-modified/lib/libopenswan/Makefile
+--- openswan-2.6.24-cvs-patched/lib/libopenswan/Makefile	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24-cvs-patched-modified/lib/libopenswan/Makefile	2010-03-18 13:29:00.000000000 -0400
+@@ -103,6 +103,10 @@ CFLAGS+=-DHAVE_LIBNSS
+ CFLAGS+=-I/usr/include/nspr4 -I/usr/include/nss3
+ endif
+ 
++ifeq ($(USE_MODP_RFC5114),true)
++CFLAGS+=-DUSE_MODP_RFC5114
++endif
++
+ CFLAGS+=-DFINALCONFDIR=\"${FINALCONFDIR}\"
+ CFLAGS+=-DFINALCONFDDIR=\"${FINALCONFDDIR}\"
+ CFLAGS+=-DFINALCONFFILE=\"${FINALCONFFILE}\"
+diff -urNp openswan-2.6.24-cvs-patched/Makefile.inc openswan-2.6.24-cvs-patched-modified/Makefile.inc
+--- openswan-2.6.24-cvs-patched/Makefile.inc	2010-03-03 14:45:35.000000000 -0500
++++ openswan-2.6.24-cvs-patched-modified/Makefile.inc	2010-03-18 13:30:58.000000000 -0400
+@@ -344,6 +344,9 @@ endif
+ # Support for LIBCAP-NG to drop unneeded capabilities for the pluto daemon
+ USE_LIBCAP_NG?=false
+ 
++# Support for MODP groups described in RFC 51114
++USE_MODP_RFC5114?=false
++
+ # whether to support NAT Traversal (aka NAT-T)
+ USE_NAT_TRAVERSAL?=true
+ 
+diff -urNp openswan-2.6.24-cvs-patched/Makefile.top openswan-2.6.24-cvs-patched-modified/Makefile.top
+--- openswan-2.6.24-cvs-patched/Makefile.top	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24-cvs-patched-modified/Makefile.top	2010-03-18 13:31:23.000000000 -0400
+@@ -110,4 +110,4 @@ export USE_WEAKSTUFF USE_NOCRYPTO USE_EX
+ export USE_TAPROOM USE_OBJDIR
+ export HAVE_STATSD USE_DYNAMICDNS
+ export USE_IPSEC_CONNECTION_LIMIT IPSEC_CONNECTION_LIMIT
+-export USE_LIBNSS USE_FIPSCHECK
++export USE_LIBNSS USE_FIPSCHECK USE_MODP_RFC5114
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/crypt_ke.c openswan-2.6.24-cvs-patched-modified/programs/pluto/crypt_ke.c
+--- openswan-2.6.24-cvs-patched/programs/pluto/crypt_ke.c	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24-cvs-patched-modified/programs/pluto/crypt_ke.c	2010-03-18 13:35:58.000000000 -0400
+@@ -89,7 +89,12 @@ void calc_ke(struct pluto_crypto_req *r)
+     n_to_mpz(&secret, wire_chunk_ptr(kn, &(kn->secret)), LOCALSECRETSIZE);
+     
+     mpz_init(&mp_g);
++
++#ifdef USE_MODP_RFC5114
++    oswcrypto.mod_exp(&mp_g, group->generator, &secret, group->modulus);
++#else
+     oswcrypto.mod_exp(&mp_g, &groupgenerator, &secret, group->modulus);
++#endif
+     
+     gi = mpz_to_n(&mp_g, group->bytes);
+     
+@@ -112,7 +117,12 @@ void calc_ke(struct pluto_crypto_req *r)
+     mpz_clear(&secret);
+     freeanychunk(gi);
+ #else
++
++#ifdef USE_MODP_RFC5114
++    base  = mpz_to_n2(group->generator);
++#else
+     base  = mpz_to_n2(&groupgenerator);
++#endif
+     prime = mpz_to_n2(group->modulus);
+ 
+     dhp.prime.data=prime.ptr;
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/crypto.c openswan-2.6.24-cvs-patched-modified/programs/pluto/crypto.c
+--- openswan-2.6.24-cvs-patched/programs/pluto/crypto.c	2010-03-03 14:46:07.000000000 -0500
++++ openswan-2.6.24-cvs-patched-modified/programs/pluto/crypto.c	2010-03-18 13:38:24.000000000 -0400
+@@ -59,7 +59,20 @@ static MP_INT
+     modp6144_modulus,
+     modp8192_modulus;
+ 
+-MP_INT groupgenerator;	/* MODP group generator (2) */
++#ifdef USE_MODP_RFC5114
++static MP_INT
++    dh22_modulus,
++    dh23_modulus,
++    dh24_modulus;
++#endif
++
++MP_INT groupgenerator;  /* MODP group generator (2) */
++
++#ifdef USE_MODP_RFC5114
++MP_INT generator_dh22,
++       generator_dh23,
++       generator_dh24;
++#endif
+ 
+ #ifdef IKE_ALG
+ 
+@@ -174,6 +187,11 @@ void
+ init_crypto(void)
+ {
+     if (mpz_init_set_str(&groupgenerator, MODP_GENERATOR, 10) != 0
++#ifdef USE_MODP_RFC5114
++    ||  mpz_init_set_str(&generator_dh22, MODP_GENERATOR_DH22, 16) != 0
++    ||  mpz_init_set_str(&generator_dh23, MODP_GENERATOR_DH23, 16) != 0
++    ||  mpz_init_set_str(&generator_dh24, MODP_GENERATOR_DH24, 16) != 0
++#endif
+ #if defined(USE_VERYWEAK_DH1)	                        /* modp768 not sufficiently strong */
+     || mpz_init_set_str(&modp768_modulus, MODP768_MODULUS, 16) != 0
+ #endif
+@@ -183,8 +201,15 @@ init_crypto(void)
+     || mpz_init_set_str(&modp3072_modulus, MODP3072_MODULUS, 16) != 0
+     || mpz_init_set_str(&modp4096_modulus, MODP4096_MODULUS, 16) != 0
+     || mpz_init_set_str(&modp6144_modulus, MODP6144_MODULUS, 16) != 0
+-    || mpz_init_set_str(&modp8192_modulus, MODP8192_MODULUS, 16) != 0)
++    || mpz_init_set_str(&modp8192_modulus, MODP8192_MODULUS, 16) != 0
++#ifdef USE_MODP_RFC5114
++    || mpz_init_set_str(&dh22_modulus, MODP1024_MODULUS_DH22, 16) != 0
++    || mpz_init_set_str(&dh23_modulus, MODP2048_MODULUS_DH23, 16) != 0
++    || mpz_init_set_str(&dh24_modulus, MODP2048_MODULUS_DH24, 16) != 0
++#endif
++      ) {
+ 	exit_log("mpz_init_set_str() failed in init_crypto()");
++     }
+ #ifdef IKE_ALG
+ 	{
+ #ifdef USE_TWOFISH
+@@ -248,6 +273,7 @@ init_crypto(void)
+  * See RFC2409 "The Internet key exchange (IKE)" 6.
+  */
+ 
++#ifndef USE_MODP_RFC5114
+ const struct oakley_group_desc unset_group = {0, NULL, 0};	/* magic signifier */
+ 
+ const struct oakley_group_desc oakley_group[] = {
+@@ -262,6 +288,26 @@ const struct oakley_group_desc oakley_gr
+     { OAKLEY_GROUP_MODP6144, &modp6144_modulus, BYTES_FOR_BITS(6144) },
+     { OAKLEY_GROUP_MODP8192, &modp8192_modulus, BYTES_FOR_BITS(8192) },
+ };
++#else
++const struct oakley_group_desc unset_group = {0, NULL, NULL, 0};      /* magic signifier */
++
++const struct oakley_group_desc oakley_group[] = {
++#if defined(USE_VERYWEAK_DH1)           /* modp768 not sufficiently strong */
++    { OAKLEY_GROUP_MODP768, &groupgenerator, &modp768_modulus, BYTES_FOR_BITS(768) },
++#endif
++    { OAKLEY_GROUP_MODP1024, &groupgenerator, &modp1024_modulus, BYTES_FOR_BITS(1024) },
++    { OAKLEY_GROUP_MODP1536, &groupgenerator, &modp1536_modulus, BYTES_FOR_BITS(1536) },
++    { OAKLEY_GROUP_MODP2048, &groupgenerator, &modp2048_modulus, BYTES_FOR_BITS(2048) },
++    { OAKLEY_GROUP_MODP3072, &groupgenerator, &modp3072_modulus, BYTES_FOR_BITS(3072) },
++    { OAKLEY_GROUP_MODP4096, &groupgenerator, &modp4096_modulus, BYTES_FOR_BITS(4096) },
++    { OAKLEY_GROUP_MODP6144, &groupgenerator, &modp6144_modulus, BYTES_FOR_BITS(6144) },
++    { OAKLEY_GROUP_MODP8192, &groupgenerator, &modp8192_modulus, BYTES_FOR_BITS(8192) },
++    { OAKLEY_GROUP_DH22, &generator_dh22, &dh22_modulus, BYTES_FOR_BITS(1024) },
++    { OAKLEY_GROUP_DH23, &generator_dh23, &dh23_modulus, BYTES_FOR_BITS(2048) },
++    { OAKLEY_GROUP_DH24, &generator_dh24, &dh24_modulus, BYTES_FOR_BITS(2048) },
++
++};
++#endif
+ 
+ const unsigned int oakley_group_size = elemsof(oakley_group);
+ 
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/crypto.h openswan-2.6.24-cvs-patched-modified/programs/pluto/crypto.h
+--- openswan-2.6.24-cvs-patched/programs/pluto/crypto.h	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24-cvs-patched-modified/programs/pluto/crypto.h	2010-03-18 13:39:15.000000000 -0400
+@@ -42,6 +42,10 @@ extern MP_INT groupgenerator;	/* MODP gr
+ 
+ struct oakley_group_desc {
+     u_int16_t group;
++/* RFC 5114 defines new modp groups each having different generator */
++#ifdef USE_MODP_RFC5114
++    MP_INT *generator;
++#endif
+     MP_INT *modulus;
+     size_t bytes;
+ };
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/Makefile.options openswan-2.6.24-cvs-patched-modified/programs/pluto/Makefile.options
+--- openswan-2.6.24-cvs-patched/programs/pluto/Makefile.options	2010-03-03 14:45:35.000000000 -0500
++++ openswan-2.6.24-cvs-patched-modified/programs/pluto/Makefile.options	2010-03-18 14:17:24.000000000 -0400
+@@ -302,7 +302,6 @@ PLUTOMINUSL+= ${X509_LLIBS} ${CURL_LLIBS
+ PLUTOMINUSL+= ${XAUTH_LLIBS} ${XAUTHPAM_LIBS}
+ PLUTOMINUSL+= ${OPENSSL_LIBS} ${LIBCRYPT} -lgmp # -lefence
+ 
+-
+ # Use LIBNSS
+ ifeq ($(USE_LIBNSS),true)
+ HAVE_LIBNSS=1
+@@ -318,6 +317,11 @@ LIBSPLUTO+= -lfipscheck
+ endif
+ endif
+ 
++# Use MODP group described in RFC 5114
++ifeq ($(USE_MODP_RFC5114),true)
++DEFINES+=-DUSE_MODP_RFC5114
++endif
++
+ ifeq ($(USE_DMALLOC),true)
+ DEFINES+=-DDMALLOC
+ LIBSPLUTO+= -ldmalloc

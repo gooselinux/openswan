@@ -1,0 +1,352 @@
+diff -urNp openswan-2.6.24-cvs-patched/include/ipsecconf/keywords.h openswan-2.6.24/include/ipsecconf/keywords.h
+--- openswan-2.6.24-cvs-patched/include/ipsecconf/keywords.h	2010-06-04 17:47:46.205169531 -0400
++++ openswan-2.6.24/include/ipsecconf/keywords.h	2010-06-18 11:35:15.175390508 -0400
+@@ -102,6 +102,7 @@ enum keyword_numeric_config_field {
+     KBF_FORCEBUSY, /* 40 */
+     KBF_OVERLAPIP,
+     KBF_REMOTEPEERTYPE, /*Cisco interop: remote peer type*/
++    KBF_NMCONFIGURED, /*Network Manager support*/
+     KBF_WARNIGNORE, /* to ignore obsoleted keywords */
+     KBF_MAX         
+ };
+diff -urNp openswan-2.6.24-cvs-patched/include/pluto_constants.h openswan-2.6.24/include/pluto_constants.h
+--- openswan-2.6.24-cvs-patched/include/pluto_constants.h	2010-06-04 17:47:46.269389813 -0400
++++ openswan-2.6.24/include/pluto_constants.h	2010-06-18 11:37:01.996395553 -0400
+@@ -50,6 +50,12 @@ enum keyword_remotepeertype {
+     CISCO  = 1,
+ };
+ 
++/* Network Manager support */
++enum keyword_nmconfigured {
++    NO_NM = 0,
++    YES_NM = 1,
++};
++
+ /* Timer events */
+ 
+ enum event_type {
+diff -urNp openswan-2.6.24-cvs-patched/include/whack.h openswan-2.6.24/include/whack.h
+--- openswan-2.6.24-cvs-patched/include/whack.h	2010-06-04 17:47:46.179139150 -0400
++++ openswan-2.6.24/include/whack.h	2010-06-18 11:41:09.182390015 -0400
+@@ -129,6 +129,9 @@ struct whack_message {
+     /*Cisco interop:  remote peer type*/
+     enum keyword_remotepeertype remotepeertype;
+ 
++    /*Checking if this connection is configured by Network Manager*/
++    enum keyword_nmconfigured nmconfigured;
++    
+     /* Force the use of NAT-T on a connection */
+     bool forceencaps;
+ 
+diff -urNp openswan-2.6.24-cvs-patched/lib/libipsecconf/confread.c openswan-2.6.24/lib/libipsecconf/confread.c
+--- openswan-2.6.24-cvs-patched/lib/libipsecconf/confread.c	2010-06-04 17:48:02.559159335 -0400
++++ openswan-2.6.24/lib/libipsecconf/confread.c	2010-06-18 11:43:47.462389777 -0400
+@@ -77,6 +77,9 @@ static void default_values (struct start
+ 	/*Cisco interop: remote peer type*/
+ 	cfg->conn_default.options[KBF_REMOTEPEERTYPE] = NON_CISCO;
+ 
++	/*Network Manager support*/
++	cfg->conn_default.options[KBF_NMCONFIGURED] = NO_NM;
++
+ 	cfg->conn_default.policy = POLICY_RSASIG|POLICY_TUNNEL|POLICY_ENCRYPT|POLICY_PFS;
+ 	cfg->conn_default.policy |= POLICY_IKEV2_ALLOW;
+ 
+diff -urNp openswan-2.6.24-cvs-patched/lib/libipsecconf/keywords.c openswan-2.6.24/lib/libipsecconf/keywords.c
+--- openswan-2.6.24-cvs-patched/lib/libipsecconf/keywords.c	2010-06-04 17:48:02.554138731 -0400
++++ openswan-2.6.24/lib/libipsecconf/keywords.c	2010-06-18 11:45:00.372390136 -0400
+@@ -191,6 +191,16 @@ struct keyword_enum_values kw_remote_pee
+ 
+ 
+ /*
++ * Network Manager support
++ */ 
++struct keyword_enum_value kw_nm_configured_list[]={
++    { "yes",         YES_NM },
++};
++
++struct keyword_enum_values kw_nm_configured=
++    { kw_nm_configured_list, sizeof(kw_nm_configured_list)/sizeof(struct keyword_enum_value)};
++
++/*
+  * Values for right= and left=
+  */
+ extern struct keyword_enum_values kw_host_list;
+@@ -357,6 +367,9 @@ struct keyword_def ipsec_conf_keywords_v
+     /* Cisco interop: remote peer type*/
+     {"remote_peer_type", kv_conn|kv_auto, kt_enum, KBF_REMOTEPEERTYPE, &kw_remote_peer_type},
+ 
++    /* Network Manager support*/
++    {"nm_configured", kv_conn|kv_auto, kt_enum, KBF_NMCONFIGURED, &kw_nm_configured},
++
+ #ifdef NAT_TRAVERSAL
+     {"forceencaps",    kv_conn|kv_auto, kt_bool,   KBF_FORCEENCAP, NOT_ENUM},
+ #endif
+diff -urNp openswan-2.6.24-cvs-patched/lib/libipsecconf/starterwhack.c openswan-2.6.24/lib/libipsecconf/starterwhack.c
+--- openswan-2.6.24-cvs-patched/lib/libipsecconf/starterwhack.c	2010-06-04 17:48:02.581309774 -0400
++++ openswan-2.6.24/lib/libipsecconf/starterwhack.c	2010-06-18 11:46:08.212139982 -0400
+@@ -523,6 +523,11 @@ static int starter_whack_basic_add_conn(
+ 	msg.remotepeertype=conn->options[KBF_REMOTEPEERTYPE];
+ 	}
+ 
++        /*Network Manager support*/
++        if(conn->options_set[KBF_NMCONFIGURED]) {
++        msg.nmconfigured=conn->options[KBF_NMCONFIGURED];
++        }
++
+ 	set_whack_end(cfg, "left",  &msg.left, &conn->left);
+ 	set_whack_end(cfg, "right", &msg.right, &conn->right);
+ 
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/connections.c openswan-2.6.24/programs/pluto/connections.c
+--- openswan-2.6.24-cvs-patched/programs/pluto/connections.c	2010-06-04 17:48:03.278139778 -0400
++++ openswan-2.6.24/programs/pluto/connections.c	2010-06-18 11:48:12.219389955 -0400
+@@ -1295,6 +1295,9 @@ add_connection(const struct whack_messag
+         c->cisco_domain_info[0] ='\0';
+         }
+ 
++        /* Network Manager support */
++        c->nmconfigured=wm->nmconfigured;
++
+ 	c->metric = wm->metric;
+ 
+ 	c->forceencaps = wm->forceencaps;
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/connections.h openswan-2.6.24/programs/pluto/connections.h
+--- openswan-2.6.24-cvs-patched/programs/pluto/connections.h	2010-06-04 17:48:03.531148369 -0400
++++ openswan-2.6.24/programs/pluto/connections.h	2010-06-18 11:50:01.027160732 -0400
+@@ -204,7 +204,10 @@ struct connection {
+ 
+     /*Cisco interop: remote peer type*/
+     enum keyword_remotepeertype remotepeertype;
+-    
++
++    /*Network Manager support*/
++    enum keyword_nmconfigured nmconfigured;
++
+     bool               forceencaps;         /* always use NAT-T encap */
+     
+     char              *log_file_name;       /* name of log file */
+@@ -259,9 +262,10 @@ struct connection {
+     ip_address modecfg_dns2;
+     ip_address modecfg_wins1;
+     ip_address modecfg_wins2;
++#endif
+     char cisco_dns_info[50];
+     char cisco_domain_info[50];
+-#endif
++    char server_banner[500];
+     u_int8_t metric;              /* metric for tunnel routes */
+ #ifdef HAVE_STATSD
+     u_int32_t statsval;			/* track what we have told statsd */
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/kernel.c openswan-2.6.24/programs/pluto/kernel.c
+--- openswan-2.6.24-cvs-patched/programs/pluto/kernel.c	2010-06-04 17:48:03.615398543 -0400
++++ openswan-2.6.24/programs/pluto/kernel.c	2010-06-18 11:54:32.138389886 -0400
+@@ -414,6 +414,8 @@ fmt_common_shell_out(char *buf, int blen
+ 		    "%s "           /* PLUTO_MY_SRCIP */
+ 		    "PLUTO_CISCO_DNS_INFO='%s' "
+ 		    "PLUTO_CISCO_DOMAIN_INFO='%s' "
++		    "PLUTO_NM_CONFIGURED='%u' "
++		    "PLUTO_SERVERBANNER='%s' "
+ 		    , c->name
+ 		    , c->interface->ip_dev->id_vname
+ 		    , nexthop_str
+@@ -438,7 +440,9 @@ fmt_common_shell_out(char *buf, int blen
+ 		    , secure_xauth_username_str
+ 		    , srcip_str
+ 		    , c->cisco_dns_info
+-		    , c->cisco_domain_info);
++		    , c->cisco_domain_info
++		    , c->nmconfigured
++		    , c->server_banner);
+ 	/* 
+ 	 * works for both old and new way of snprintf() returning
+ 	 * eiter -1 or the output length  -- by Carsten Schlote
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/whack.c openswan-2.6.24/programs/pluto/whack.c
+--- openswan-2.6.24-cvs-patched/programs/pluto/whack.c	2010-06-04 17:48:03.136419496 -0400
++++ openswan-2.6.24/programs/pluto/whack.c	2010-06-18 11:58:53.409389905 -0400
+@@ -121,6 +121,10 @@ help(void)
+ 	    " \\\n   "
+ 	    " [--esp <esp-algos>]"
+ 	    " \\\n   "
++	    " [--remote_peer_type <cisco>]"
++	    " \\\n   "
++	    "[--nm_configured <yes>]"
++	    " \\\n   "
+ 	    " [--dontrekey]"
+ 	    " [--aggrmode]"
+ 	    " [--forceencaps]"
+@@ -485,6 +489,7 @@ enum option_enums {
+     CD_FORCEENCAPS,
+     CD_IKE,
+     CD_PFSGROUP,
++    CD_REMOTEPEERTYPE,
+     CD_ESP	
+ #   define CD_LAST CD_ESP	/* last connection description */
+ 
+@@ -698,6 +703,7 @@ static const struct option long_opts[] =
+     { "ikealg", required_argument, NULL, CD_IKE + OO },
+     { "pfsgroup", required_argument, NULL, CD_PFSGROUP + OO },
+     { "esp", required_argument, NULL, CD_ESP + OO },
++    { "remote_peer_type", required_argument, NULL, CD_REMOTEPEERTYPE + OO},
+ #ifdef DEBUG
+     { "debug-none", no_argument, NULL, DBGOPT_NONE + OO },
+     { "debug-all]", no_argument, NULL, DBGOPT_ALL + OO },
+@@ -903,6 +909,10 @@ main(int argc, char **argv)
+     msg.esp = NULL;
+     msg.ike = NULL;
+     msg.pfsgroup = NULL;
++    msg.remotepeertype = NON_CISCO;
++
++    /*Network Manager support*/
++    msg.nmconfigured = NO_NM;
+ 
+     msg.sa_ike_life_seconds = OAKLEY_ISAKMP_SA_LIFETIME_DEFAULT;
+     msg.sa_ipsec_life_seconds = PLUTO_SA_LIFE_DURATION_DEFAULT;
+@@ -1505,6 +1515,15 @@ main(int argc, char **argv)
+ 	    msg.esp = optarg;
+ 	    continue;
+ 
++	case CD_REMOTEPEERTYPE: /* --remote_peer_type  <cisco> */
++	    if ( strcmp(optarg, "cisco" ) == 0) {
++		    msg.remotepeertype = CISCO;
++	    }
++	    else {
++		    msg.remotepeertype = NON_CISCO;
++	    }
++	   continue;
++
+ 	case CD_CONNIPV4:
+ 	    if (LHAS(cd_seen, CD_CONNIPV6 - CD_FIRST))
+ 		diag("--ipv4 conflicts with --ipv6");
+@@ -1841,6 +1860,11 @@ main(int argc, char **argv)
+             msg.dpd_action = DPD_ACTION_HOLD;
+     }
+ 
++    if (msg.remotepeertype != CISCO && msg.remotepeertype != NON_CISCO) {
++            diag("remote_peer_type can only be \"CISCO\", now defaulting to non cisco mode");
++            msg.remotepeertype = NON_CISCO; /*NON_CISCO=0*/
++    }
++
+ 
+     /* pack strings for inclusion in message */
+     wp.msg = &msg;
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/xauth.c openswan-2.6.24/programs/pluto/xauth.c
+--- openswan-2.6.24-cvs-patched/programs/pluto/xauth.c	2010-06-04 17:48:03.349402734 -0400
++++ openswan-2.6.24/programs/pluto/xauth.c	2010-06-18 12:01:16.769389737 -0400
+@@ -1811,16 +1811,14 @@ modecfg_inR1(struct msg_digest *md)
+ 
+ 		case CISCO_BANNER:
+                 {
+-                char test[500];
+                 DBG_dump("Received cisco banner: ", strattr.cur, pbs_left(&strattr));
+-                strncpy(test,strattr.cur, pbs_left(&strattr));
+-                test[pbs_left(&strattr)]='\0';
+-                DBG_log("Cisco banner: %s", test);
++                strncpy(st->st_connection->server_banner, strattr.cur, pbs_left(&strattr));
++                st->st_connection->server_banner[pbs_left(&strattr)]='\0';
++                DBG_log("Cisco banner: %s", st->st_connection->server_banner);
+                 resp |= LELEM(attr.isaat_af_type);
+                 }
+                 break;
+ 
+-
+ 		case CISCO_DEF_DOMAIN:
+                 {
+                 char tmp[50];
+@@ -2097,19 +2095,19 @@ stf_status xauth_client_resp(struct stat
+ 			    , st->st_xauth_password.len
+ 			    , &attrval, "XAUTH password");
+ 
+-		    /* No need to store password read from prompt, passoword 
+-		     * can be read from a secureid (like RSA),in which password 
+-		     * changes frequently or a password can be entereted wrong, 
+-		     * so it is always good to read the password from prompt always
++		    /*
++		     * Do not store the password read from the prompt. The password
++		     * could have been read from a one-time token device (like SecureID)
++		     * or the password could have been entereted wrong,
+ 		     */
+ 		    if (password_read_from_prompt) {
+ 			freeanychunk (st->st_xauth_password);
+ 			st->st_xauth_password.len = 0;
+ 			password_read_from_prompt = FALSE;
+-		    }	
++		    }
+ 		    close_output_pbs(&attrval);
+ 		    break;
+-		    
++
+ 		default:
+ 		    openswan_log("trying to send XAUTH reply, sending %s instead."
+ 			 , enum_show(&modecfg_attr_names, attr_type));
+diff -urNp openswan-2.6.24-cvs-patched/programs/_updown.netkey/_updown.ip2.in openswan-2.6.24/programs/_updown.netkey/_updown.ip2.in
+--- openswan-2.6.24-cvs-patched/programs/_updown.netkey/_updown.ip2.in	2010-06-14 11:44:07.171246049 -0400
++++ openswan-2.6.24/programs/_updown.netkey/_updown.ip2.in	2010-06-18 12:09:26.835140533 -0400
+@@ -169,18 +169,26 @@ downroute() {
+ }
+ 
+ updateresolvconf() {
+-    echo "updating resolvconf"
+ 
+-    if [ -e "$OPENSWAN_RESOLV_CONF" ]; then
+-        echo "Backup resolv.conf already exists, so doing nothing"
+-        return 1
+-    fi
++if [ -z "$PLUTO_NM_CONFIGURED" -o "$PLUTO_NM_CONFIGURED" = 0 ]; then
++    echo "updating resolvconf"
+ 
+     if [ ! -e "$ORIG_RESOLV_CONF" ]; then
+         echo "resolv.conf does not exist, so doing nothing"
+         return 1
+     fi
+ 
++    if [ -e "$OPENSWAN_RESOLV_CONF" ]; then
++	if grep 'Openswan' $ORIG_RESOLV_CONF > /dev/null 2>&1
++	then
++	    echo "Current resolv.conf is generated by Openswan, and backup resolv.conf already exists, so doing nothing"
++	    return 1
++	else
++            echo "backup resolv.conf exists, but current resolv.conf is not generated by Openswan"
++	fi
++    fi
++
++    rm -f $OPENSWAN_RESOLV_CONF
+     cp -- $ORIG_RESOLV_CONF $OPENSWAN_RESOLV_CONF
+ 
+     RESOLVE_CONF="#Generated by Openswan (IPSec)"
+@@ -206,9 +214,26 @@ updateresolvconf() {
+    rm -f -- $ORIG_RESOLV_CONF
+    echo -e $RESOLVE_CONF > $ORIG_RESOLV_CONF
+    return $?
++
++else
++   echo "Giving control to Network Manager"
++   openswan_reason=connect
++   export openswan_reason
++   export PLUTO_CISCO_DOMAIN_INFO
++   export PLUTO_CISCO_DNS_INFO
++   export PLUTO_SERVERBANNER
++   export PLUTO_SOURCEIP
++   export PLUTO_PEER
++
++   /usr/libexec/nm-openswan-service-helper
++
++   return 0
++fi
+ }
+ 
+ restoreresolvconf() {
++
++if [ -z "$PLUTO_NM_CONFIGURED" -o "$PLUTO_NM_CONFIGURED" = 0 ]; then
+     echo "restoring resolvconf"
+ 
+     if [ ! -e "$OPENSWAN_RESOLV_CONF" ]; then
+@@ -225,6 +250,10 @@ restoreresolvconf() {
+ 
+     rm -f -- "$OPENSWAN_RESOLV_CONF"
+     return 0
++else
++    echo "Controlled by Network Manager, doing nothing"
++fi
++
+ }
+ 
+ addsource() {

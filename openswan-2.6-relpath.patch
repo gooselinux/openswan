@@ -1,0 +1,24 @@
+diff -urNp openswan-2.6.24-orig/Makefile.inc openswan-2.6.24/Makefile.inc
+--- openswan-2.6.24-orig/Makefile.inc	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24/Makefile.inc	2010-01-11 12:15:53.000000000 -0500
+@@ -123,6 +123,8 @@ FINALRCDIR=$(shell for d in $(INC_RCDIRS
+ 		do if test -d $(DESTDIR)/$$d ; \
+ 		then echo $$d ; exit 0 ; \
+ 		fi ; done ; echo $(INC_RCDEFAULT) )
++# this needs to be a relative path from BINDIR
++RELFINALRCDIR=../../..$(FINALRCDIR)
+ RCDIR=$(DESTDIR)$(FINALRCDIR)
+ 
+ 
+diff -urNp openswan-2.6.24-orig/programs/setup/Makefile openswan-2.6.24/programs/setup/Makefile
+--- openswan-2.6.24-orig/programs/setup/Makefile	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24/programs/setup/Makefile	2010-01-11 12:15:53.000000000 -0500
+@@ -32,7 +32,7 @@ include ${srcdir}../Makefile.program
+ doinstall:: setup
+ 	@rm -f $(BINDIR)/setup
+ 	@$(INSTALL) $(INSTBINFLAGS) setup $(RCDIR)/ipsec
+-	@ln -s $(FINALRCDIR)/ipsec $(BINDIR)/setup
++	@ln -s $(RELFINALRCDIR)/ipsec $(BINDIR)/setup
+ 	-@for i in 0 1 2 3 4 5 6; do mkdir -p $(RCDIR)/../rc$$i.d; done
+ 	-@cd $(RCDIR)/../rc0.d && ln -f -s ../init.d/ipsec K76ipsec
+ 	-@cd $(RCDIR)/../rc1.d && ln -f -s ../init.d/ipsec K76ipsec

@@ -1,0 +1,37 @@
+diff -urNp openswan-2.6.24-orig/programs/rsasigkey/Makefile openswan-2.6.24/programs/rsasigkey/Makefile
+--- openswan-2.6.24-orig/programs/rsasigkey/Makefile	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24/programs/rsasigkey/Makefile	2010-01-11 16:28:41.000000000 -0500
+@@ -18,7 +18,7 @@ include ${OPENSWANSRCDIR}/Makefile.inc
+ ifeq ($(USE_LIBNSS),true)
+ CFLAGS+=-DHAVE_LIBNSS
+ # temp workaround for bug in nspr 4.8.2 
+-CFLAGS+=-Wno-strict-prototypes
++#CFLAGS+=-Wno-strict-prototypes
+ ifeq ($(USE_FIPSCHECK),true)
+ FIPS_CHECK=1
+ CFLAGS+=-DFIPS_CHECK
+@@ -38,3 +38,6 @@ endif
+ 
+ include ${srcdir}../Makefile.program
+ 
++ifeq ($(USE_LIBNSS),true)
++CFLAGS+=-Wno-strict-prototypes
++endif
+diff -urNp openswan-2.6.24-orig/programs/showhostkey/Makefile openswan-2.6.24/programs/showhostkey/Makefile
+--- openswan-2.6.24-orig/programs/showhostkey/Makefile	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24/programs/showhostkey/Makefile	2010-01-11 16:29:32.000000000 -0500
+@@ -18,10 +18,13 @@ ifeq ($(USE_LIBNSS),true)
+ CFLAGS+=-DHAVE_LIBNSS
+ INCLUDES+=-I/usr/include/nspr4 -I/usr/include/nss3
+ # temp workaround for bug in nspr 4.8.2 
+-CFLAGS+=-Wno-strict-prototypes
++#CFLAGS+=-Wno-strict-prototypes
+ endif
+ 
+ PROGRAM=showhostkey
+ 
+ include ${srcdir}../Makefile.program
+ 
++ifeq ($(USE_LIBNSS),true)
++CFLAGS+=-Wno-strict-prototypes
++endif

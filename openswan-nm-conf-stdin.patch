@@ -1,0 +1,25 @@
+diff -urNp openswan-2.6.24-cvs-patched/lib/libipsecconf/parser.y openswan-2.6.24/lib/libipsecconf/parser.y
+--- openswan-2.6.24-cvs-patched/lib/libipsecconf/parser.y	2010-06-04 17:48:02.573390582 -0400
++++ openswan-2.6.24/lib/libipsecconf/parser.y	2010-07-13 18:32:28.208876883 -0400
+@@ -22,6 +22,7 @@
+ #include <string.h>
+ #include <assert.h>
+ #include <limits.h>
++#include <unistd.h>
+ 
+ #include "ipsecconf/keywords.h"
+ #include "ipsecconf/parser.h"
+@@ -498,7 +499,12 @@ struct config_parsed *parser_load_conf (
+ 	cfg = (struct config_parsed *)malloc(sizeof(struct config_parsed));
+ 	if (cfg) {
+ 		memset(cfg, 0, sizeof(struct config_parsed));
+-		f = fopen(file, "r");
++		if (strncmp(file, "-", sizeof("-")) == 0) {
++			f = fdopen(STDIN_FILENO, "r");
++		}
++		else {
++			f = fopen(file, "r");
++		}
+ 		if (f) {
+ 			yyin = f;
+ 			parser_y_init(file, f);

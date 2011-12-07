@@ -1,0 +1,49 @@
+diff -urNp openswan-2.6.24-cvs-patched/Makefile.inc openswan-2.6.24/Makefile.inc
+--- openswan-2.6.24-cvs-patched/Makefile.inc	2010-05-18 10:23:30.000000000 -0400
++++ openswan-2.6.24/Makefile.inc	2010-05-18 10:27:59.000000000 -0400
+@@ -344,7 +344,7 @@ endif
+ # Support for LIBCAP-NG to drop unneeded capabilities for the pluto daemon
+ USE_LIBCAP_NG?=false
+ 
+-# Support for MODP groups described in RFC 51114
++# Support for MODP groups described in RFC 5114
+ USE_MODP_RFC5114?=false
+ 
+ # whether to support NAT Traversal (aka NAT-T)
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/initiate.c openswan-2.6.24/programs/pluto/initiate.c
+--- openswan-2.6.24-cvs-patched/programs/pluto/initiate.c	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24/programs/pluto/initiate.c	2010-05-18 10:32:25.000000000 -0400
+@@ -85,6 +85,9 @@ orient(struct connection *c)
+ 
+ 	for (sr = &c->spd; sr; sr = sr->next)
+ 	{
++
++	    if(c->remotepeertype ==CISCO && sr != &c->spd ) continue;
++
+ 	    /* Note: this loop does not stop when it finds a match:
+ 	     * it continues checking to catch any ambiguity.
+ 	     */
+diff -urNp openswan-2.6.24-cvs-patched/programs/rsasigkey/rsasigkey.c openswan-2.6.24/programs/rsasigkey/rsasigkey.c
+--- openswan-2.6.24-cvs-patched/programs/rsasigkey/rsasigkey.c	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24/programs/rsasigkey/rsasigkey.c	2010-05-18 10:39:14.000000000 -0400
+@@ -568,7 +568,7 @@ rsasigkey(int nbits, char *configdir, ch
+ 	}
+ 
+ 	PR_Init(PR_USER_THREAD, PR_PRIORITY_NORMAL, 1);
+-	snprintf(buf, sizeof(buf), "sql:%s",configdir);
++	snprintf(buf, sizeof(buf), "%s",configdir);
+ 	if ((rv = NSS_InitReadWrite(buf)) != SECSuccess) {
+ 		fprintf(stderr, "%s: NSS_InitReadWrite returned %d\n", me, PR_GetError());
+ 		break;
+diff -urNp openswan-2.6.24-cvs-patched/programs/showhostkey/showhostkey.c openswan-2.6.24/programs/showhostkey/showhostkey.c
+--- openswan-2.6.24-cvs-patched/programs/showhostkey/showhostkey.c	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24/programs/showhostkey/showhostkey.c	2010-05-18 10:39:56.000000000 -0400
+@@ -492,7 +492,7 @@ int main(int argc, char *argv[])
+     PRBool nss_initialized = PR_FALSE;
+     SECStatus rv;
+     char buf[100];
+-    snprintf(buf, sizeof(buf), "sql:%s",oco->confddir);
++    snprintf(buf, sizeof(buf), "%s",oco->confddir);
+     loglog(RC_LOG_SERIOUS,"nss directory showhostkey: %s",buf);
+     PR_Init(PR_USER_THREAD, PR_PRIORITY_NORMAL, 1);
+     if ((rv = NSS_InitReadWrite(buf)) != SECSuccess) {

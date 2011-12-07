@@ -1,0 +1,47 @@
+diff -urNp openswan-2.6.24/Makefile.inc openswan-2.6.24-cvs-patched/Makefile.inc
+--- openswan-2.6.24/Makefile.inc	2010-03-22 10:43:18.000000000 -0400
++++ openswan-2.6.24-cvs-patched/Makefile.inc	2010-03-22 10:39:35.000000000 -0400
+@@ -333,7 +333,8 @@ USE_XAUTHPAM?=false
+ # Support for integrity check for binaries (requires USE_LIBNSS and fipscheck-devel)
+ USE_FIPSCHECK?=false
+ 
+-# Support for NSS crypto library (requires HAVE_THREADS)
++# Support for NSS crypto library (does not requires HAVE_THREADS)
++# USE_LIBNSS uses pthreads by default.
+ USE_LIBNSS?=false
+ 
+ ifeq ($(USE_FIPSCHECK),true)
+@@ -385,7 +386,8 @@ IPSEC_CONNECTION_LIMIT?=250
+ 
+ # Do we have pthreads available?  Only yes if you need it for XAUTH+PAM,
+ # or if you need it for CRL fetching or if you need it for USE_LIBNSS
+-# 
++# Note: USE_LIBNSS by default uses pthreads, enabling it here will only 
++# affect it for XAUTH+PAM, and CRL. 
+ HAVE_THREADS?=false
+ 
+ # Do we have an external stats daemon we can push state changes to?
+diff -urNp openswan-2.6.24/programs/pluto/Makefile.options openswan-2.6.24-cvs-patched/programs/pluto/Makefile.options
+--- openswan-2.6.24/programs/pluto/Makefile.options	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24-cvs-patched/programs/pluto/Makefile.options	2010-03-22 10:39:35.000000000 -0400
+@@ -309,6 +309,8 @@ HAVE_LIBNSS=1
+ DEFINES+=-DHAVE_LIBNSS
+ LIBSPLUTO+= -lnspr4
+ LIBSPLUTO+= -lnss3
++# For avoiding implicit DSO linking
++LIBSPLUTO+= -lpthread
+ ifeq ($(USE_FIPSCHECK),true)
+ FIPS_CHECK=1
+ DEFINES+=-DFIPS_CHECK
+diff -urNp openswan-2.6.24/programs/rsasigkey/Makefile openswan-2.6.24-cvs-patched/programs/rsasigkey/Makefile
+--- openswan-2.6.24/programs/rsasigkey/Makefile	2010-03-22 10:43:51.000000000 -0400
++++ openswan-2.6.24-cvs-patched/programs/rsasigkey/Makefile	2010-03-22 10:39:35.000000000 -0400
+@@ -29,7 +29,7 @@ endif
+ PROGRAM=rsasigkey
+ LIBS=${OPENSWANLIB} -lgmp
+ ifeq ($(USE_LIBNSS),true)
+-LIBS+= -lnspr4 -lnss3
++LIBS+= -lnspr4 -lnss3 -lplc4
+ ifeq ($(USE_FIPSCHECK),true)
+ LIBS+=  -lfipscheck
+ endif

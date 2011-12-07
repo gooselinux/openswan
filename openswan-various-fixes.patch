@@ -1,0 +1,366 @@
+diff -urNp openswan-2.6.24-patched/programs/pluto/ikev1.c openswan-2.6.24/programs/pluto/ikev1.c
+--- openswan-2.6.24-patched/programs/pluto/ikev1.c	2010-02-18 15:20:17.000000000 -0500
++++ openswan-2.6.24/programs/pluto/ikev1.c	2010-02-18 15:19:31.000000000 -0500
+@@ -773,7 +773,7 @@ informational(struct msg_digest *md)
+ 		tmp_c->host_pair->him.addr = tmp_c->spd.that.host_addr;
+ 
+ 		/*Initiating connection with the redirected peer*/
+-		initiate_connection(tmp_name, tmp_whack_sock, 0, pcim_local_crypto);
++		initiate_connection(tmp_name, tmp_whack_sock, 0, pcim_demand_crypto);
+ 		return STF_IGNORE;
+            }
+ 
+diff -urNp openswan-2.6.24-patched/programs/pluto/ikev2_child.c openswan-2.6.24/programs/pluto/ikev2_child.c
+--- openswan-2.6.24-patched/programs/pluto/ikev2_child.c	2010-02-18 15:20:17.000000000 -0500
++++ openswan-2.6.24/programs/pluto/ikev2_child.c	2010-02-19 19:36:15.000000000 -0500
+@@ -178,8 +178,23 @@ stf_status ikev2_calc_emit_ts(struct msg
+ 	ret = ikev2_emit_ts(md, outpbs, ISAKMP_NEXT_v2TSr
+ 			    , ts_i, INITIATOR);
+ 	if(ret!=STF_OK) return ret;
+-	ret = ikev2_emit_ts(md, outpbs, ISAKMP_NEXT_NONE
++
++	if(role == INITIATOR) {
++	ret = ikev2_emit_ts(md, outpbs, st->st_connection->policy & POLICY_TUNNEL ? ISAKMP_NEXT_NONE : ISAKMP_NEXT_v2N
+ 			    , ts_r, RESPONDER);
++	}
++	else {
++		if ( md->chain[ISAKMP_NEXT_v2N] && (md->chain[ISAKMP_NEXT_v2N]->payload.v2n.isan_type == USE_TRANSPORT_MODE) ) {
++			DBG_log("Received USE_TRANSPORT_MODE from the other end, next payload is USE_TRANSPORT_MODE notification");
++			ret = ikev2_emit_ts(md, outpbs, ISAKMP_NEXT_v2N
++						, ts_r, RESPONDER);
++		}
++		else {
++                        ret = ikev2_emit_ts(md, outpbs, ISAKMP_NEXT_NONE
++                                                , ts_r, RESPONDER);
++		}
++	}
++
+ 	if(ret!=STF_OK) return ret;
+     }
+ 
+@@ -465,6 +480,32 @@ stf_status ikev2_child_sa_respond(struct
+ 			     , c, c->policy);
+     if(ret != STF_OK) return ret;
+ 
++    if( role == RESPONDER ) {
++	if ( md->chain[ISAKMP_NEXT_v2N] && (md->chain[ISAKMP_NEXT_v2N]->payload.v2n.isan_type == USE_TRANSPORT_MODE) ) {
++
++	if(st1->st_connection->policy & POLICY_TUNNEL) {
++		DBG_log("Although local policy is tunnel, received USE_TRANSPORT_MODE");
++		DBG_log("So switching to transport mode, and responding with USE_TRANSPORT_MODE notify");
++	}
++	else {
++                DBG_log("Local policy is transport, received USE_TRANSPORT_MODE");
++		DBG_log("Now responding with USE_TRANSPORT_MODE notify");
++	}
++
++	chunk_t child_spi, notifiy_data;
++	memset(&child_spi, 0, sizeof(child_spi));
++	memset(&notifiy_data, 0, sizeof(notifiy_data));
++	ship_v2N (ISAKMP_NEXT_NONE, ISAKMP_PAYLOAD_NONCRITICAL, /*PROTO_ISAKMP*/ 0,
++			&child_spi,
++			USE_TRANSPORT_MODE, &notifiy_data, outpbs);
++
++		if (st1->st_esp.present == TRUE) {
++		/*openswan supports only "esp" with ikev2 it seems, look at ikev2_parse_child_sa_body handling*/
++		st1->st_esp.attrs.encapsulation = ENCAPSULATION_MODE_TRANSPORT;
++                }
++	}
++    }
++
+     ikev2_derive_child_keys(st1, role);
+     /* install inbound and outbound SPI info */
+     if(!install_ipsec_sa(st1, TRUE))
+diff -urNp openswan-2.6.24-patched/programs/pluto/ikev2_parent.c openswan-2.6.24/programs/pluto/ikev2_parent.c
+--- openswan-2.6.24-patched/programs/pluto/ikev2_parent.c	2010-02-18 15:20:17.000000000 -0500
++++ openswan-2.6.24/programs/pluto/ikev2_parent.c	2010-02-19 19:05:23.000000000 -0500
+@@ -1375,16 +1375,27 @@ ikev2_parent_inR1outI2_tail(struct pluto
+ 
+ 	/*
+ 	 * now, find an eligible child SA from the pending list, and emit
+-	 * SA2i, TSi and TSr for it.
++	 * SA2i, TSi and TSr and (USE_TRANSPORT_MODE notification in transport mode) for it .
+ 	 */
+ 	if(c0) {
+ 	    st->st_connection = c0;
++
+ 	    ikev2_emit_ipsec_sa(md,&e_pbs_cipher,ISAKMP_NEXT_v2TSi,c0, policy);
+ 	    
+ 	    st->st_ts_this = ikev2_subnettots(&c0->spd.this);
+ 	    st->st_ts_that = ikev2_subnettots(&c0->spd.that);
+ 	    
+ 	    ikev2_calc_emit_ts(md, &e_pbs_cipher, INITIATOR, c0, policy);
++
++	    if( !(st->st_connection->policy & POLICY_TUNNEL) ) {
++		DBG_log("Initiator child policy is transport mode, sending USE_TRANSPORT_MODE");
++		chunk_t child_spi, notifiy_data;
++		memset(&child_spi, 0, sizeof(child_spi));
++		memset(&notifiy_data, 0, sizeof(notifiy_data));
++		ship_v2N (ISAKMP_NEXT_NONE, ISAKMP_PAYLOAD_NONCRITICAL, 0,
++				&child_spi,
++				USE_TRANSPORT_MODE, &notifiy_data, &e_pbs_cipher);
++	    }
+ 	} else {
+ 	    openswan_log("no pending SAs found, PARENT SA keyed only");
+ 	}
+@@ -1979,6 +1990,37 @@ stf_status ikev2parent_inR2(struct msg_d
+ 	if(rn != NOTHING_WRONG)
+ 	    return STF_FAIL + rn;
+     }
++
++    {
++	if ( md->chain[ISAKMP_NEXT_v2N] ) {
++	    if ( (md->chain[ISAKMP_NEXT_v2N]->payload.v2n.isan_type == USE_TRANSPORT_MODE )) {
++		if ( st->st_connection->policy & POLICY_TUNNEL) {
++		/*This means we did not send USE_TRANSPORT, however responder is sending it in now (inR2), seems incorrect*/
++			DBG(DBG_CONTROLMORE,
++			DBG_log("Initiator policy is tunnel, responder sends USE_TRANSPORT_MODE notification in inR2, ignoring it"));
++		}
++		else {
++			DBG(DBG_CONTROLMORE,
++			DBG_log("Initiator policy is transport, responder sends USE_TRANSPORT_MODE, setting CHILD SA to transport mode"));
++			if (st->st_esp.present == TRUE) { 
++			/*openswan supports only "esp" with ikev2 it seems, look at ikev2_parse_child_sa_body handling*/
++			st->st_esp.attrs.encapsulation = ENCAPSULATION_MODE_TRANSPORT;
++			}
++		}
++	    }
++	}
++
++        if ( md->chain[ISAKMP_NEXT_v2N] == NULL ||
++               !(md->chain[ISAKMP_NEXT_v2N]->payload.v2n.isan_type == USE_TRANSPORT_MODE ) ) {
++                if ( !(st->st_connection->policy & POLICY_TUNNEL) ) {
++                /*This means we sent USE_TRANSPORT, however responder did not send it or did not agree with that*/
++                        DBG(DBG_CONTROLMORE,
++			DBG_log("Initiator policy is transport, responder did not send USE_TRANSPORT_MODE, so falling back to tunnel mode (rfc 4306)"));
++                }
++        }
++
++    }
++
+ 	
+     ikev2_derive_child_keys(st, md->role);
+ 
+diff -urNp openswan-2.6.24-patched/programs/pluto/kernel.c openswan-2.6.24/programs/pluto/kernel.c
+--- openswan-2.6.24-patched/programs/pluto/kernel.c	2010-02-18 15:20:17.000000000 -0500
++++ openswan-2.6.24/programs/pluto/kernel.c	2010-02-18 15:19:31.000000000 -0500
+@@ -2671,7 +2671,14 @@ install_ipsec_sa(struct state *st, bool 
+ 	return TRUE;
+     }
+ 
+-    for (sr = &st->st_connection->spd; sr != NULL; sr = sr->next)
++
++    sr = &st->st_connection->spd;
++    if (st->st_connection->remotepeertype == CISCO) {
++    sr = sr->next;
++    }
++
++    //for (sr = &st->st_connection->spd; sr != NULL; sr = sr->next)
++    for (; sr != NULL; sr = sr->next)
+     {
+         DBG(DBG_CONTROL, DBG_log("sr for #%ld: %s"
+                                  , st->st_serialno
+diff -urNp openswan-2.6.24-patched/programs/pluto/plutomain.c openswan-2.6.24/programs/pluto/plutomain.c
+--- openswan-2.6.24-patched/programs/pluto/plutomain.c	2010-02-18 15:20:17.000000000 -0500
++++ openswan-2.6.24/programs/pluto/plutomain.c	2010-02-25 14:51:49.000000000 -0500
+@@ -318,9 +318,11 @@ main(int argc, char **argv)
+ #ifdef HAVE_LIBCAP_NG
+ 	/* Drop capabilities */
+ 	capng_clear(CAPNG_SELECT_BOTH);
+-	capng_updatev(CAPNG_ADD, CAPNG_EFFECTIVE|CAPNG_PERMITTED,
++	capng_updatev(CAPNG_ADD, CAPNG_EFFECTIVE|CAPNG_PERMITTED|CAPNG_BOUNDING_SET,
+ 			CAP_NET_BIND_SERVICE, CAP_NET_ADMIN, CAP_NET_RAW,
+ 			CAP_IPC_LOCK, -1);
++	//capng_updatev(CAPNG_ADD, CAPNG_BOUNDING_SET,
++        //                CAP_NET_ADMIN, -1);
+ 	capng_apply(CAPNG_SELECT_BOTH);
+ #endif
+ 
+diff -urNp openswan-2.6.24-patched/programs/pluto/xauth.c openswan-2.6.24/programs/pluto/xauth.c
+--- openswan-2.6.24-patched/programs/pluto/xauth.c	2010-02-18 15:20:17.000000000 -0500
++++ openswan-2.6.24/programs/pluto/xauth.c	2010-02-18 15:19:31.000000000 -0500
+@@ -1806,9 +1806,24 @@ modecfg_inR1(struct msg_digest *md)
+                     struct connection *c = st->st_connection;
+                     struct spd_route *tmp_spd2 = &c->spd;
+ 
++                    /*a.u.v4.sin_family = AF_INET;
++                    a.u.v4.sin_addr.s_addr = 0;
++                    addrtosubnet(&a, &tmp_spd2->that.client);
++		    //tmp_spd2->that.client.addr = 0;
++                    tmp_spd2->that.client.maskbits = 0;
++                    tmp_spd2->that.has_client = TRUE;*/
++
+                     while (len > 0) {
+                     tmp_spd = clone_thing(c->spd, "remote subnets policies");
+ 
++                    tmp_spd->this.id.name.ptr = NULL;
++                    tmp_spd->this.id.name.len = 0;
++                    tmp_spd->that.id.name.ptr = NULL;
++                    tmp_spd->that.id.name.len = 0; 
++
++                    tmp_spd->this.host_addr_name = NULL;
++		    tmp_spd->that.host_addr_name = NULL;
++
+                     u_int32_t *ap = (u_int32_t *)(strattr.cur);
+                     a.u.v4.sin_family = AF_INET;
+                     memcpy(&a.u.v4.sin_addr.s_addr, ap
+@@ -1833,12 +1848,29 @@ modecfg_inR1(struct msg_digest *md)
+                     len -= 6;
+                     strattr.cur += 6;
+ 
+-                    tmp_spd->that.has_client = TRUE;
+-
+                     subnettot(&tmp_spd->that.client, 0
+                               , caddr, sizeof(caddr));
++
+                     openswan_log("Received subnet %s, maskbits %d", caddr, tmp_spd->that.client.maskbits);
+ 
++                    tmp_spd->this.updown = clone_str(tmp_spd->this.updown, "updown");
++                    tmp_spd->that.updown = clone_str(tmp_spd->that.updown, "updown");
++
++                    tmp_spd->this.cert_filename = NULL;
++                    tmp_spd->that.cert_filename = NULL;
++
++                    tmp_spd->this.cert.type = 0;
++                    tmp_spd->that.cert.type = 0;
++
++                    tmp_spd->this.ca.ptr = NULL;
++                    tmp_spd->this.ca.ptr = NULL;
++
++                    tmp_spd->this.groups = NULL;
++                    tmp_spd->this.groups = NULL;
++
++                    tmp_spd->this.virt = NULL;
++                    tmp_spd->this.virt = NULL;
++
+                     tmp_spd->next = NULL;
+                     tmp_spd2->next = tmp_spd;
+                     tmp_spd2 = tmp_spd;
+@@ -1929,6 +1961,7 @@ stf_status xauth_client_resp(struct stat
+ 	    dont_advance = FALSE;
+ 	    if(xauth_resp & 1)
+ 	    {
++		bool password_read_from_prompt = FALSE;
+ 		/* ISAKMP attr out */
+ 		switch(attr_type)
+ 		{
+@@ -2021,11 +2054,23 @@ stf_status xauth_client_resp(struct stat
+ 			clonereplacechunk(st->st_xauth_password
+ 					  , xauth_password, strlen(xauth_password)
+ 					  , "XAUTH password");
++			password_read_from_prompt = TRUE;
+ 		    }
+ 		    
+ 		    out_raw(st->st_xauth_password.ptr
+ 			    , st->st_xauth_password.len
+ 			    , &attrval, "XAUTH password");
++
++		    /* No need to store password read from prompt, passoword 
++		     * can be read from a secureid (like RSA),in which password 
++		     * changes frequently or a password can be entereted wrong, 
++		     * so it is always good to read the password from prompt always
++		     */
++		    if (password_read_from_prompt) {
++			freeanychunk (st->st_xauth_password);
++			st->st_xauth_password.len = 0;
++			password_read_from_prompt = FALSE;
++		    }	
+ 		    close_output_pbs(&attrval);
+ 		    break;
+ 		    
+diff -urNp openswan-2.6.24-patched/programs/spi/spi.c openswan-2.6.24/programs/spi/spi.c
+--- openswan-2.6.24-patched/programs/spi/spi.c	2010-02-18 15:20:17.000000000 -0500
++++ openswan-2.6.24/programs/spi/spi.c	2010-02-18 15:19:32.000000000 -0500
+@@ -1090,9 +1090,21 @@ main(int argc, char *argv[])
+ 				progname);
+ 	}
+ 
++        struct stat sts;
++        if ( ((stat ("/proc/net/pfkey", &sts)) == 0) )  {
++                fprintf(stderr, "%s: NETKEY does not support spi.\n",progname);
++                exit(1);
++        }
++
+ 	if(argcount == 1) {
+-		int ret = system("cat /proc/net/ipsec_spi");
+-		exit(ret != -1 && WIFEXITED(ret) ? WEXITSTATUS(ret) : 1);
++		int ret = 1;
++		if ((stat ("/proc/net/ipsec_spi", &sts)) != 0)  {
++			fprintf(stderr, "%s: No spi - no IPsec support in kernel (are the modules loaded?)\n", progname);
++		} else {
++			ret = system("cat /proc/net/ipsec_spi");
++			ret = ret != -1 && WIFEXITED(ret) ? WEXITSTATUS(ret) : 1;
++		}
++		exit(ret);
+ 	}
+ 
+ 	switch(alg) {
+diff -urNp openswan-2.6.24-patched/programs/spigrp/spigrp.c openswan-2.6.24/programs/spigrp/spigrp.c
+--- openswan-2.6.24-patched/programs/spigrp/spigrp.c	2010-02-18 15:20:17.000000000 -0500
++++ openswan-2.6.24/programs/spigrp/spigrp.c	2010-02-18 15:19:32.000000000 -0500
+@@ -147,10 +147,23 @@ main(int argc, char **argv)
+ 		fprintf(stdout, "...After check for --label option.\n");
+ 	}
+ 
+-	if(argc == 1) {
+-		int ret = system("cat /proc/net/ipsec_spigrp");
+-		exit(ret != -1 && WIFEXITED(ret) ? WEXITSTATUS(ret) : 1);
+-	}
++
++        struct stat sts;
++        if ( ((stat ("/proc/net/pfkey", &sts)) == 0) )  {
++                fprintf(stderr, "%s: NETKEY does not support spigrp.\n",progname);
++                exit(1);
++        }
++
++        if(argc == 1) {
++                int ret = 1;
++                if ((stat ("/proc/net/ipsec_spigrp", &sts)) != 0)  {
++                        fprintf(stderr, "%s: No spigrp - no IPsec support in kernel (are the modules loaded?)\n", progname);
++                } else {
++                        ret = system("cat /proc/net/ipsec_spigrp");
++                        ret = ret != -1 && WIFEXITED(ret) ? WEXITSTATUS(ret) : 1;
++                }
++                exit(ret);
++        }
+ 
+ 	if(debug) {
+ 		fprintf(stdout, "...After check for no option to print /proc/net/ipsec_spigrp.\n");
+diff -urNp openswan-2.6.24-patched/programs/tncfg/tncfg.c openswan-2.6.24/programs/tncfg/tncfg.c
+--- openswan-2.6.24-patched/programs/tncfg/tncfg.c	2010-02-18 15:20:17.000000000 -0500
++++ openswan-2.6.24/programs/tncfg/tncfg.c	2010-02-18 15:19:32.000000000 -0500
+@@ -37,6 +37,8 @@ char tncfg_c_version[] = "use ipsec --ve
+ #include <net/if.h>
+ #endif
+ #include <sys/types.h>
++#include <sys/stat.h>
++#include <sys/wait.h>
+ #include <errno.h>
+ #include <getopt.h>
+ #include "socketwrapper.h"
+@@ -257,9 +259,22 @@ main(int argc, char *argv[])
+ 		previous = c;
+ 	}
+ 
+-	if(argcount == 1) {
+-		exit(system("cat /proc/net/ipsec_tncfg"));
+-	}
++        struct stat sts;
++        if ( ((stat ("/proc/net/pfkey", &sts)) == 0) )  {
++                fprintf(stderr, "%s: NETKEY does not support tncfg.\n",progname);
++                exit(1);
++        }
++
++        if(argcount == 1) {
++                int ret = 1;
++                if ((stat ("/proc/net/ipsec_tncfg", &sts)) != 0)  {
++                        fprintf(stderr, "%s: No tncfg - no IPsec support in kernel (are the modules loaded?)\n", progname);
++                } else {
++                        ret = system("cat /proc/net/ipsec_tncfg");
++                        ret = ret != -1 && WIFEXITED(ret) ? WEXITSTATUS(ret) : 1;
++                }
++                exit(ret);
++        }
+ 
+ 	/* overlay our struct ipsectunnel onto ifr.ifr_ifru union (hope it fits!) */
+ 	if (sizeof(ifr.ifr_ifru) < sizeof(shc)) {

@@ -1,0 +1,15 @@
+diff -urNp openswan-2.6.24-orig/programs/ipsec/ipsec.in openswan-2.6.24/programs/ipsec/ipsec.in
+--- openswan-2.6.24-orig/programs/ipsec/ipsec.in	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24/programs/ipsec/ipsec.in	2010-01-13 17:52:10.000000000 -0500
+@@ -79,9 +79,9 @@ case "$1" in
+ --help)
+ 	echo "Usage: ipsec command argument ..."
+ 	echo "where command is one of:"
+-	for f in `ls $IPSEC_LIBDIR $IPSEC_EXECDIR | egrep -v -i "$DONTMENTION"`
++	for f in `ls $IPSEC_LIBDIR | egrep -v -i "$DONTMENTION"`
+ 	do
+-		if test -x $IPSEC_LIBDIR/$f || test -x $IPSEC_EXECDIR/$f
++		if test -x $IPSEC_LIBDIR/$f
+ 		then
+ 			echo "	$f"
+ 		fi
