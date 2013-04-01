@@ -1,0 +1,13 @@
+diff -urNp openswan-2.6.24-cvs-patched/programs/_updown.netkey/_updown.ip2.in openswan-2.6.24/programs/_updown.netkey/_updown.ip2.in
+--- openswan-2.6.24-cvs-patched/programs/_updown.netkey/_updown.ip2.in	2010-06-04 17:48:04.384388207 -0400
++++ openswan-2.6.24/programs/_updown.netkey/_updown.ip2.in	2010-06-08 11:47:37.299560690 -0400
+@@ -200,6 +200,9 @@ updateresolvconf() {
+ 	done
+    fi
+ 
++   ORIG_NAMESERVER=`grep -m 1 ^nameserver $ORIG_RESOLV_CONF`
++   RESOLVE_CONF="$RESOLVE_CONF\n$ORIG_NAMESERVER"
++
+    rm -f -- $ORIG_RESOLV_CONF
+    echo -e $RESOLVE_CONF > $ORIG_RESOLV_CONF
+    return $?

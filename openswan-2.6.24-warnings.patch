@@ -1,0 +1,99 @@
+diff -urNp openswan-2.6.24-orig/lib/libopenswan/oswconf.c openswan-2.6.24/lib/libopenswan/oswconf.c
+--- openswan-2.6.24-orig/lib/libopenswan/oswconf.c	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24/lib/libopenswan/oswconf.c	2010-01-14 22:03:45.000000000 -0500
+@@ -206,7 +206,7 @@ char *getNSSPassword(PK11SlotInfo *slot,
+      char* strings;
+      char* token=NULL;
+      const long maxPwdFileSize = NSSpwdfilesize;
+-     int i, tlen;
++     int i, tlen=0;
+ 
+      if (slot) {
+      token = PK11_GetTokenName(slot);
+@@ -214,6 +214,9 @@ char *getNSSPassword(PK11SlotInfo *slot,
+          tlen = PORT_Strlen(token);
+ 	 //openswan_log("authentication needed for token name %s with length %d",token,tlen);
+          }
++	 else {
++	 return 0; 
++	 }
+      }
+      else {
+      return 0;
+diff -urNp openswan-2.6.24-orig/programs/pluto/kernel.c openswan-2.6.24/programs/pluto/kernel.c
+--- openswan-2.6.24-orig/programs/pluto/kernel.c	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24/programs/pluto/kernel.c	2010-01-15 10:45:47.000000000 -0500
+@@ -360,12 +360,12 @@ fmt_common_shell_out(char *buf, int blen
+ 	char *p;
+ 	int   l;
+ 	strncat(srcip_str, "PLUTO_MY_SOURCEIP=", sizeof(srcip_str));
+-	strncat(srcip_str, "'", sizeof(srcip_str));
++	strncat(srcip_str, "'", sizeof(srcip_str)-strlen(srcip_str)-1);
+ 	l = strlen(srcip_str);
+ 	p = srcip_str + l;
+         
+ 	addrtot(&sr->this.host_srcip, 0, p, sizeof(srcip_str));
+-	strncat(srcip_str, "'", sizeof(srcip_str));
++	strncat(srcip_str, "'", sizeof(srcip_str)-strlen(srcip_str)-1);
+     }
+     
+     {
+diff -urNp openswan-2.6.24-orig/programs/pluto/pluto_crypt.c openswan-2.6.24/programs/pluto/pluto_crypt.c
+--- openswan-2.6.24-orig/programs/pluto/pluto_crypt.c	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24/programs/pluto/pluto_crypt.c	2010-01-14 22:30:25.000000000 -0500
+@@ -976,6 +976,7 @@ pluto_helper_thread(void *w) {
+     struct pluto_crypto_worker *helper;
+     helper=(struct pluto_crypto_worker *)w;
+     pluto_crypto_helper(helper->pcw_helper_pipe, helper->pcw_helpernum);
++    return NULL;
+ }
+ #endif
+ 
+diff -urNp openswan-2.6.24-orig/programs/pluto/rcv_info.c openswan-2.6.24/programs/pluto/rcv_info.c
+--- openswan-2.6.24-orig/programs/pluto/rcv_info.c	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24/programs/pluto/rcv_info.c	2010-01-15 10:58:54.000000000 -0500
+@@ -313,7 +313,9 @@ info_handle(int infoctlfd)
+ 	{
+ 	case IPSEC_CMD_QUERY_HOSTPAIR:
+ 	    info_lookuphostpair(&ipcq);
+-	    write(infofd, &ipcq, ipcq.head.ipm_msg_len);
++	    if(write(infofd, &ipcq, ipcq.head.ipm_msg_len) == -1 ) {
++            plog("info_handle: write error");
++	    }
+ 	    break;
+ 	    
+ 	default:
+diff -urNp openswan-2.6.24-orig/programs/pluto/rcv_whack.c openswan-2.6.24/programs/pluto/rcv_whack.c
+--- openswan-2.6.24-orig/programs/pluto/rcv_whack.c	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24/programs/pluto/rcv_whack.c	2010-01-15 11:18:13.000000000 -0500
+@@ -156,8 +156,13 @@ static bool writewhackrecord(char *buf, 
+ 
+     //DBG_log("buflen: %u abuflen: %u\n", header[0], abuflen);
+     
+-    fwrite(header, sizeof(u_int32_t)*3, 1, whackrecordfile);
+-    fwrite(buf, abuflen, 1, whackrecordfile);
++    if(fwrite(header, sizeof(u_int32_t)*3, 1, whackrecordfile) < 1) {
++    DBG_log("writewhackrecord: fwrite error when writing header");
++    }
++
++    if(fwrite(buf, abuflen, 1, whackrecordfile) < 1) {
++    DBG_log("writewhackrecord: fwrite error when writing buf");
++    }
+     
+     return TRUE;
+ }
+diff -urNp openswan-2.6.24-orig/programs/pluto/whack.c openswan-2.6.24/programs/pluto/whack.c
+--- openswan-2.6.24-orig/programs/pluto/whack.c	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24/programs/pluto/whack.c	2010-01-15 11:13:58.000000000 -0500
+@@ -1957,7 +1957,10 @@ main(int argc, char **argv)
+ 		    }
+ 
+ 		    le++;	/* include NL in line */
+-		    write(1, ls, le - ls);
++		    if(write(1, ls, le - ls) != (le-ls)) {
++			int e = errno;
++			fprintf(stderr, "whack: write() failed to stdout(%d %s)\n", e, strerror(e));
++		    }
+ 		    fsync(1);
+ 
+ 		    /* figure out prefix number

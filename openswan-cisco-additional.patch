@@ -1,0 +1,421 @@
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/connections.c openswan-2.6.24-cvs-patched-modified/programs/pluto/connections.c
+--- openswan-2.6.24-cvs-patched/programs/pluto/connections.c	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24-cvs-patched-modified/programs/pluto/connections.c	2010-03-18 13:32:41.000000000 -0400
+@@ -1287,8 +1287,13 @@ add_connection(const struct whack_messag
+         c->dpd_timeout = wm->dpd_timeout;
+         c->dpd_action = wm->dpd_action;
+ 
+-	/*Cisco interop: remote peer type*/
+-	c->remotepeertype=wm->remotepeertype;
++        /* Cisco interop: remote peer type */
++        c->remotepeertype=wm->remotepeertype;
++        /* Initializing Cisco dns and domain info */
++        if (c->remotepeertype == CISCO) {
++        c->cisco_dns_info[0] ='\0'; 
++        c->cisco_domain_info[0] ='\0';
++        }
+ 
+ 	c->metric = wm->metric;
+ 
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/connections.h openswan-2.6.24-cvs-patched-modified/programs/pluto/connections.h
+--- openswan-2.6.24-cvs-patched/programs/pluto/connections.h	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24-cvs-patched-modified/programs/pluto/connections.h	2010-03-18 13:34:06.000000000 -0400
+@@ -259,6 +259,8 @@ struct connection {
+     ip_address modecfg_dns2;
+     ip_address modecfg_wins1;
+     ip_address modecfg_wins2;
++    char cisco_dns_info[50];
++    char cisco_domain_info[50];
+ #endif
+     u_int8_t metric;              /* metric for tunnel routes */
+ #ifdef HAVE_STATSD
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/ikev1.c openswan-2.6.24-cvs-patched-modified/programs/pluto/ikev1.c
+--- openswan-2.6.24-cvs-patched/programs/pluto/ikev1.c	2010-03-03 14:46:21.000000000 -0500
++++ openswan-2.6.24-cvs-patched-modified/programs/pluto/ikev1.c	2010-03-18 14:14:38.000000000 -0400
+@@ -705,74 +705,95 @@ informational(struct msg_digest *md)
+                 /* to find and store the connection associated with tmp_name*/
+ 		tmp_c = con_by_name(tmp_name, FALSE);
+ 
+-		DBG_cond_dump(DBG_PARSING, "redirected remote end info:", n_pbs->cur + pbs_left(n_pbs)-4, 4);
++                DBG_cond_dump(DBG_PARSING, "redirected remote end info:", n_pbs->cur + pbs_left(n_pbs)-4, 4);
+ 
+-		/*Current remote peer info*/
+-		{
++                /*Current remote peer info*/
++                {
+ 
+-		char buftest[ADDRTOT_BUF];
++                char buftest[ADDRTOT_BUF];
+                 struct spd_route *tmp_spd = &tmp_c->spd;
+                 int count_spd=0;
+                 do {
+-                DBG_log("spd route number: %d", ++count_spd);
+-                DBG_log("host_addr: %s", (addrtot(&tmp_spd->that.host_addr, 0, buftest, sizeof(buftest)), buftest) );
+-                DBG_log("nexthop: %s", (addrtot(&tmp_spd->that.host_nexthop, 0, buftest, sizeof(buftest)), buftest) );
+-                DBG_log("srcip: %s", (addrtot(&tmp_spd->that.host_srcip, 0, buftest, sizeof(buftest)), buftest) );
+-                DBG_log("client_addr: %s", (addrtot(&tmp_spd->that.client.addr, 0, buftest, sizeof(buftest)), buftest) );
++                DBG(DBG_CONTROLMORE, DBG_log("spd route number: %d", ++count_spd));
++
++                /**that info**/
++                DBG(DBG_CONTROLMORE, DBG_log("that id kind: %d",tmp_spd->that.id.kind));
++                DBG(DBG_CONTROLMORE, DBG_log("that id ipaddr: %s", (addrtot(&tmp_spd->that.id.ip_addr, 0, buftest, sizeof(buftest)), buftest)));
++                if (tmp_spd->that.id.name.ptr != NULL) {
++                DBG(DBG_CONTROLMORE, DBG_dump_chunk("that id name",tmp_spd->that.id.name));
++                }
++                DBG(DBG_CONTROLMORE, DBG_log("that host_addr: %s", (addrtot(&tmp_spd->that.host_addr, 0, buftest, sizeof(buftest)), buftest)));
++                DBG(DBG_CONTROLMORE, DBG_log("that nexthop: %s", (addrtot(&tmp_spd->that.host_nexthop, 0, buftest, sizeof(buftest)), buftest)));
++                DBG(DBG_CONTROLMORE, DBG_log("that srcip: %s", (addrtot(&tmp_spd->that.host_srcip, 0, buftest, sizeof(buftest)), buftest)));
++                DBG(DBG_CONTROLMORE, DBG_log("that client_addr: %s, maskbits:%d"
++                    , (addrtot(&tmp_spd->that.client.addr, 0, buftest, sizeof(buftest)), buftest),tmp_spd->that.client.maskbits));
++                DBG(DBG_CONTROLMORE, DBG_log("that has_client: %d", tmp_spd->that.has_client));
++                DBG(DBG_CONTROLMORE, DBG_log("that has_client_wildcard: %d", tmp_spd->that.has_client_wildcard));
++                DBG(DBG_CONTROLMORE, DBG_log("that has_port_wildcard: %d", tmp_spd->that.has_port_wildcard));
++                DBG(DBG_CONTROLMORE, DBG_log("that has_id_wildcards: %d", tmp_spd->that.has_id_wildcards));
++
+                 tmp_spd = tmp_spd->next;
+                 } while(tmp_spd!=NULL);
+ 
+ 
+-		if(tmp_c->interface!=NULL){
+-		DBG_log("Current interface_addr: %s", (addrtot(&tmp_c->interface->ip_addr, 0, buftest, sizeof(buftest)), buftest) );
+-		}
++                if(tmp_c->interface!=NULL){
++                DBG(DBG_CONTROLMORE, 
++                DBG_log("Current interface_addr: %s", (addrtot(&tmp_c->interface->ip_addr, 0, buftest, sizeof(buftest)), buftest)));
++                }
++
++                if(tmp_c->gw_info!=NULL){
++                DBG(DBG_CONTROLMORE,
++                DBG_log("Current gw_client_addr: %s", (addrtot(&tmp_c->gw_info->client_id.ip_addr, 0, buftest, sizeof(buftest)), buftest)));
++                DBG(DBG_CONTROLMORE, 
++                DBG_log("Current gw_gw_addr: %s", (addrtot(&tmp_c->gw_info->gw_id.ip_addr, 0, buftest, sizeof(buftest)), buftest)));
++                }
+ 
+-		if(tmp_c->gw_info!=NULL){
+-		DBG_log("Current gw_client_addr: %s", (addrtot(&tmp_c->gw_info->client_id.ip_addr, 0, buftest, sizeof(buftest)), buftest) );
+-		DBG_log("Current gw_gw_addr: %s", (addrtot(&tmp_c->gw_info->gw_id.ip_addr, 0, buftest, sizeof(buftest)), buftest) );
+-		}
+-
+-		}
++                }
+ 
+                 ip_address old_addr;
+                 /*storing old address for comparison purposes*/
+                 old_addr = tmp_c->spd.that.host_addr;
+ 
+-		/*Decoding remote peer address info where connection has to be redirected*/
+-		memcpy(&tmp_c->spd.that.host_addr.u.v4.sin_addr.s_addr, 
++                /*Decoding remote peer address info where connection has to be redirected to*/
++                memcpy(&tmp_c->spd.that.host_addr.u.v4.sin_addr.s_addr, 
+ 				(u_int32_t *)(n_pbs->cur + pbs_left(n_pbs)-4), sizeof(tmp_c->spd.that.host_addr.u.v4.sin_addr.s_addr));
+-		//DBG_log("host_addr_name : %s", tmp_c->spd.that.host_addr_name);
+ 
+-		/*Modifying connection info to store the redirected remote peer info*/
+-                DBG_log("Old host_addr_name : %s", tmp_c->spd.that.host_addr_name);
+-		tmp_c->spd.that.host_addr_name = NULL;
+-		tmp_c->spd.that.id.ip_addr= tmp_c->spd.that.host_addr;
+-
+-		if(sameaddr(&tmp_c->spd.this.host_nexthop, &old_addr)) {
+-		char buftest[ADDRTOT_BUF];
+-		DBG_log("Old remote addr %s", (addrtot(&old_addr, 0, buftest, sizeof(buftest)), buftest) );
+-		DBG_log("Old this host next hop %s", (addrtot(&tmp_c->spd.this.host_nexthop, 0, buftest, sizeof(buftest)), buftest) );
+-		tmp_c->spd.this.host_nexthop = tmp_c->spd.that.host_addr;
+-                DBG_log("New this host next hop %s", (addrtot(&tmp_c->spd.this.host_nexthop, 0, buftest, sizeof(buftest)), buftest) );
+-		}
++                /*Modifying connection info to store the redirected remote peer info*/
++                DBG(DBG_CONTROLMORE, DBG_log("Old host_addr_name : %s", tmp_c->spd.that.host_addr_name));
++                tmp_c->spd.that.host_addr_name = NULL;
++                tmp_c->spd.that.id.ip_addr= tmp_c->spd.that.host_addr;
+ 
+-		if(sameaddr(&tmp_c->spd.that.host_srcip, &old_addr)) {
++                if(sameaddr(&tmp_c->spd.this.host_nexthop, &old_addr)) {
+                 char buftest[ADDRTOT_BUF];
+-                DBG_log("Old that host srcip %s", (addrtot(&tmp_c->spd.that.host_srcip, 0, buftest, sizeof(buftest)), buftest) );
+-		tmp_c->spd.that.host_srcip = tmp_c->spd.that.host_addr;
+-		DBG_log("New that host srcip %s", (addrtot(&tmp_c->spd.that.host_srcip, 0, buftest, sizeof(buftest)), buftest) );
+-		}
++                DBG(DBG_CONTROLMORE, DBG_log("Old remote addr %s", (addrtot(&old_addr, 0, buftest, sizeof(buftest)), buftest)));
++                DBG(DBG_CONTROLMORE,
++                DBG_log("Old this host next hop %s", (addrtot(&tmp_c->spd.this.host_nexthop, 0, buftest, sizeof(buftest)), buftest)));
++                tmp_c->spd.this.host_nexthop = tmp_c->spd.that.host_addr;
++                DBG(DBG_CONTROLMORE,
++                DBG_log("New this host next hop %s", (addrtot(&tmp_c->spd.this.host_nexthop, 0, buftest, sizeof(buftest)), buftest)));
++                }
+ 
+-		if(sameaddr(&tmp_c->spd.that.client.addr, &old_addr)) {
++                if(sameaddr(&tmp_c->spd.that.host_srcip, &old_addr)) {
+                 char buftest[ADDRTOT_BUF];
+-		DBG_log("Old that client ip %s", (addrtot(&tmp_c->spd.that.client.addr, 0, buftest, sizeof(buftest)), buftest) );
+-		tmp_c->spd.that.client.addr = tmp_c->spd.that.host_addr;
+-		DBG_log("New that client ip %s", (addrtot(&tmp_c->spd.that.client.addr, 0, buftest, sizeof(buftest)), buftest) );
+-		}
++                DBG(DBG_CONTROLMORE, 
++                DBG_log("Old that host srcip %s", (addrtot(&tmp_c->spd.that.host_srcip, 0, buftest, sizeof(buftest)), buftest)));
++                tmp_c->spd.that.host_srcip = tmp_c->spd.that.host_addr;
++                DBG(DBG_CONTROLMORE, 
++                DBG_log("New that host srcip %s", (addrtot(&tmp_c->spd.that.host_srcip, 0, buftest, sizeof(buftest)), buftest)));
++                }
++
++                if(sameaddr(&tmp_c->spd.that.client.addr, &old_addr)) {
++                char buftest[ADDRTOT_BUF];
++                DBG(DBG_CONTROLMORE, 
++                DBG_log("Old that client ip %s", (addrtot(&tmp_c->spd.that.client.addr, 0, buftest, sizeof(buftest)), buftest)));
++                tmp_c->spd.that.client.addr = tmp_c->spd.that.host_addr;
++                DBG(DBG_CONTROLMORE, 
++                DBG_log("New that client ip %s", (addrtot(&tmp_c->spd.that.client.addr, 0, buftest, sizeof(buftest)), buftest)));
++                }
+ 
+ 		tmp_c->host_pair->him.addr = tmp_c->spd.that.host_addr;
+ 
+-		/*Initiating connection with the redirected peer*/
++		/*Initiating connection to the redirected peer*/
+ 		initiate_connection(tmp_name, tmp_whack_sock, 0, pcim_demand_crypto);
+ 		return STF_IGNORE;
+            }
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/kernel.c openswan-2.6.24-cvs-patched-modified/programs/pluto/kernel.c
+--- openswan-2.6.24-cvs-patched/programs/pluto/kernel.c	2010-03-03 14:46:21.000000000 -0500
++++ openswan-2.6.24-cvs-patched-modified/programs/pluto/kernel.c	2010-03-18 14:16:19.000000000 -0400
+@@ -412,6 +412,8 @@ fmt_common_shell_out(char *buf, int blen
+ 		    "PLUTO_CONN_POLICY='%s' "
+ 		    "%s "           /* XAUTH username */
+ 		    "%s "           /* PLUTO_MY_SRCIP */
++		    "PLUTO_CISCO_DNS_INFO='%s' "
++		    "PLUTO_CISCO_DOMAIN_INFO='%s' "
+ 		    , c->name
+ 		    , c->interface->ip_dev->id_vname
+ 		    , nexthop_str
+@@ -434,7 +436,9 @@ fmt_common_shell_out(char *buf, int blen
+ 		    , metric_str
+ 		    , prettypolicy(c->policy)
+ 		    , secure_xauth_username_str
+-		    , srcip_str);
++		    , srcip_str
++		    , c->cisco_dns_info
++		    , c->cisco_domain_info);
+ 	/* 
+ 	 * works for both old and new way of snprintf() returning
+ 	 * eiter -1 or the output length  -- by Carsten Schlote
+@@ -2705,6 +2709,12 @@ install_ipsec_sa(struct state *st, bool 
+         }
+     }
+ 
++   if (st->st_connection->remotepeertype == CISCO) {
++	if(!do_command(st->st_connection, &st->st_connection->spd, "updateresolvconf", st)) {
++	DBG(DBG_CONTROL, DBG_log("Updating resolv.conf failed, you may need to update it manually"));
++	}
++   }
++
+     return TRUE;
+ }
+ 
+@@ -2766,6 +2776,13 @@ delete_ipsec_sa(struct state *st USED_BY
+ 	    (void) teardown_half_ipsec_sa(st, FALSE);
+ 	}
+ 	(void) teardown_half_ipsec_sa(st, TRUE);
++
++	if (st->st_connection->remotepeertype == CISCO) {
++		if(!do_command(st->st_connection, &st->st_connection->spd, "restoreresolvconf", st)) {
++		DBG(DBG_CONTROL, DBG_log("Restoring resolv.conf failed, you may need to do it manually"));
++		}
++	}
++
+ 	break;
+ #if defined(WIN32) && defined(WIN32_NATIVE)
+     case USE_WIN32_NATIVE:
+diff -urNp openswan-2.6.24-cvs-patched/programs/pluto/xauth.c openswan-2.6.24-cvs-patched-modified/programs/pluto/xauth.c
+--- openswan-2.6.24-cvs-patched/programs/pluto/xauth.c	2010-03-03 14:46:21.000000000 -0500
++++ openswan-2.6.24-cvs-patched-modified/programs/pluto/xauth.c	2010-03-18 14:26:49.000000000 -0400
+@@ -732,6 +732,11 @@ stf_status modecfg_send_request(struct s
+ 	attr.isaat_lv = 0;
+ 	out_struct(&attr, &isakmp_xauth_attribute_desc, &strattr, NULL);
+ 
++        /* ISAKMP attr out (CISCO_DEF_DOMAIN) */
++        attr.isaat_af_type = CISCO_DEF_DOMAIN;
++        attr.isaat_lv = 0;
++        out_struct(&attr, &isakmp_xauth_attribute_desc, &strattr, NULL);
++
+ 	/* ISAKMP attr out (CISCO_SPLIT_INC) */
+ 	attr.isaat_af_type = CISCO_SPLIT_INC;
+ 	attr.isaat_lv = 0;
+@@ -1632,6 +1637,7 @@ modecfg_inR1(struct msg_digest *md)
+     pb_stream *attrs = &md->chain[ISAKMP_NEXT_ATTR]->pbs;
+     int resp = LEMPTY;
+     struct payload_digest *p;
++    bool first_dns_flag = TRUE;
+ 
+     DBG(DBG_CONTROL, DBG_log("modecfg_inR1"));
+     openswan_log("received mode cfg reply");
+@@ -1781,7 +1787,18 @@ modecfg_inR1(struct msg_digest *md)
+                         , sizeof(a.u.v4.sin_addr.s_addr));
+                     
+                     addrtot(&a, 0, caddr, sizeof(caddr));
+-                    openswan_log("Received DNS %s", caddr);
++                    openswan_log("Received DNS %s, len=%d", caddr, strlen(caddr));
++
++                    if (first_dns_flag) {
++                    strcpy(st->st_connection->cisco_dns_info, caddr);
++                    first_dns_flag = 0;
++                    }
++                    else {
++                    strcat(st->st_connection->cisco_dns_info, " ");
++                    strcat(st->st_connection->cisco_dns_info, caddr);
++                    }
++
++                    DBG_log("Cisco DNS info: %s, len=%d", st->st_connection->cisco_dns_info, strlen(st->st_connection->cisco_dns_info));
+                 }
+                 resp |= LELEM(attr.isaat_af_type);
+                 break;
+@@ -1792,12 +1809,32 @@ modecfg_inR1(struct msg_digest *md)
+ 		    resp |= LELEM(attr.isaat_af_type);
+ 		    break;
+ 
+-                case CISCO_BANNER:
++		case CISCO_BANNER:
++                {
++                char test[500];
+                 DBG_dump("Received cisco banner: ", strattr.cur, pbs_left(&strattr));
++                strncpy(test,strattr.cur, pbs_left(&strattr));
++                test[pbs_left(&strattr)]='\0';
++                DBG_log("Cisco banner: %s", test);
++                resp |= LELEM(attr.isaat_af_type);
++                }
++                break;
++
++
++		case CISCO_DEF_DOMAIN:
++                {
++                char tmp[50];
++                DBG_dump("Received cisco def domain: ", strattr.cur, pbs_left(&strattr));
++                strncpy(tmp, strattr.cur, pbs_left(&strattr));
++                tmp[pbs_left(&strattr)]='\0';
++                DBG_log("Cisco defined domain: %s", tmp);
++                strcpy(st->st_connection->cisco_domain_info, tmp);
++                DBG_log("Cisco defined domain: %s", st->st_connection->cisco_domain_info);
+                 resp |= LELEM(attr.isaat_af_type);
++                }
+                 break;
+ 
+-                case CISCO_SPLIT_INC:
++		case CISCO_SPLIT_INC:
+                 {
+                     struct spd_route *tmp_spd;
+                     ip_address a;
+@@ -1805,13 +1842,12 @@ modecfg_inR1(struct msg_digest *md)
+                     size_t len = pbs_left(&strattr);
+                     struct connection *c = st->st_connection;
+                     struct spd_route *tmp_spd2 = &c->spd;
+-
+-                    /*a.u.v4.sin_family = AF_INET;
+-                    a.u.v4.sin_addr.s_addr = 0;
+-                    addrtosubnet(&a, &tmp_spd2->that.client);
+-		    //tmp_spd2->that.client.addr = 0;
+-                    tmp_spd2->that.client.maskbits = 0;
+-                    tmp_spd2->that.has_client = TRUE;*/
++                    
++                    if ( FALSE == tmp_spd2->that.has_client ) {
++                    ttosubnet("0.0.0.0/0.0.0.0", 0, AF_INET, &tmp_spd2->that.client);
++                    tmp_spd2->that.has_client = TRUE;
++                    tmp_spd2->that.has_client_wildcard = FALSE;
++                    }
+ 
+                     while (len > 0) {
+                     tmp_spd = clone_thing(c->spd, "remote subnets policies");
+@@ -1822,7 +1858,7 @@ modecfg_inR1(struct msg_digest *md)
+                     tmp_spd->that.id.name.len = 0; 
+ 
+                     tmp_spd->this.host_addr_name = NULL;
+-		    tmp_spd->that.host_addr_name = NULL;
++                    tmp_spd->that.host_addr_name = NULL;
+ 
+                     u_int32_t *ap = (u_int32_t *)(strattr.cur);
+                     a.u.v4.sin_family = AF_INET;
+diff -urNp openswan-2.6.24-cvs-patched/programs/_updown.netkey/_updown.ip2.in openswan-2.6.24-cvs-patched-modified/programs/_updown.netkey/_updown.ip2.in
+--- openswan-2.6.24-cvs-patched/programs/_updown.netkey/_updown.ip2.in	2010-01-09 20:34:38.000000000 -0500
++++ openswan-2.6.24-cvs-patched-modified/programs/_updown.netkey/_updown.ip2.in	2010-03-18 14:28:36.000000000 -0400
+@@ -123,6 +123,9 @@ then
+     . /etc/sysconfig/pluto_updown
+ fi
+ 
++OPENSWAN_RESOLV_CONF=/var/run/pluto/openswan-resolv-conf-backup
++ORIG_RESOLV_CONF=/etc/resolv.conf
++
+ # Ignore parameter custom
+ if [ " $1" = " custom" ]; then
+     shift
+@@ -165,6 +168,61 @@ downroute() {
+     ip route flush cache
+ }
+ 
++updateresolvconf() {
++    echo "updating resolvconf"
++
++    if [ -e "$OPENSWAN_RESOLV_CONF" ]; then
++        echo "Backup resolv.conf already exists, so doing nothing"
++        return 1
++    fi
++
++    if [ ! -e "$ORIG_RESOLV_CONF" ]; then
++        echo "resolv.conf does not exist, so doing nothing"
++        return 1
++    fi
++
++    cp -- $ORIG_RESOLV_CONF $OPENSWAN_RESOLV_CONF
++
++    RESOLVE_CONF="#Generated by Openswan (IPSec)"
++
++    if [ -n "$PLUTO_CISCO_DOMAIN_INFO" ]; then
++	if grep 'domain' $ORIG_RESOLV_CONF > /dev/null 2>&1 
++	then 
++	RESOLVE_CONF="$RESOLVE_CONF\ndomain $PLUTO_CISCO_DOMAIN_INFO\nsearch $PLUTO_CISCO_DOMAIN_INFO"
++	else
++	RESOLVE_CONF="$RESOLVE_CONF\nsearch $PLUTO_CISCO_DOMAIN_INFO"
++	fi
++    fi
++
++    if [ -n "$PLUTO_CISCO_DNS_INFO" ]; then
++	for i in $PLUTO_CISCO_DNS_INFO; do
++		RESOLVE_CONF="$RESOLVE_CONF\nnameserver $i"
++	done
++   fi
++
++   rm -f -- $ORIG_RESOLV_CONF
++   echo -e $RESOLVE_CONF > $ORIG_RESOLV_CONF
++   return $?
++}
++
++restoreresolvconf() {
++    echo "restoring resolvconf"
++
++    if [ ! -e "$OPENSWAN_RESOLV_CONF" ]; then
++	echo "Problem in restoring the resolv.conf, as there is no backup file"
++	return 2
++    fi
++
++    if grep 'Openswan' $ORIG_RESOLV_CONF > /dev/null 2>&1 
++    then
++	cp -- "$OPENSWAN_RESOLV_CONF" $ORIG_RESOLV_CONF
++    else
++	echo "Current resolv.conf is not generated by Openswan, so doing nothing"
++    fi
++
++    rm -f -- "$OPENSWAN_RESOLV_CONF"
++    return 0
++}
+ 
+ addsource() {
+     st=0
+@@ -279,6 +337,14 @@ case "$PLUTO_VERB" in
+ 	# connection to my client subnet going down
+ 	# If you are doing a custom version, firewall commands go here.
+ 	;;
++    updateresolvconf-host|updateresolvconf-client)
++        # updating resolv.conf using DNS info obtained from the server
++        updateresolvconf
++        ;;
++    restoreresolvconf-host|restoreresolvconf-client)
++        # restoring resolv.conf
++        restoreresolvconf
++        ;;
+     #
+     # IPv6
+     #
